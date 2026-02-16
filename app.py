@@ -116,19 +116,6 @@ if st.session_state.results:
         use_container_width=True,
         num_rows="dynamic",
         hide_index=True,
-        column_config={
-            "REDBR": st.column_config.NumberColumn("R.BR", width="small"),
-            "TIPDOK": st.column_config.TextColumn("TIP", width="small"),
-            "BRDOKFAKT": st.column_config.TextColumn("BR.DOKUMENTA", width="medium"),
-            "DATUMF": st.column_config.TextColumn("DATUM", width="medium"),
-            "NAZIVPP": st.column_config.TextColumn("NAZIV PP", width="large"),
-            "SJEDISTEPP": st.column_config.TextColumn("SJEDIŠTE PP", width="large"),
-            "IDDVPP": st.column_config.TextColumn("ID BROJ", width="medium"),
-            "JIBPUPP": st.column_config.TextColumn("PDV BROJ", width="medium"),
-            "IZNAKFT": st.column_config.TextColumn("UKUPNO", width="medium"),
-            "IZNOSNOV": st.column_config.TextColumn("NETO", width="medium"),
-            "IZNPDV": st.column_config.TextColumn("PDV", width="medium"),
-        },
     )
 
     # Excel download
