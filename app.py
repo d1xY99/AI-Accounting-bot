@@ -36,12 +36,6 @@ border:2px dashed #e5e7eb;border-radius:16px;padding:60px;background:#fafafa;
 
 .pdfbox{border:1px solid #e5e7eb;border-radius:14px;padding:6px;height:75vh;}
 
-.export-bar{
-position:fixed;bottom:0;left:0;right:0;background:white;
-border-top:1px solid #e5e7eb;padding:14px 30px;
-box-shadow:0 -6px 20px rgba(0,0,0,0.04);
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -197,10 +191,9 @@ if st.session_state.results:
     excel = create_excel(export_df)
     csv = export_df.to_csv(index=False, sep=";", encoding="utf-8-sig")
 
-    st.markdown('<div class="export-bar">',unsafe_allow_html=True)
+    st.divider()
     c1,c2=st.columns(2)
     with c1:
         st.download_button("Preuzmi Excel",excel,"racuni.xlsx",use_container_width=True)
     with c2:
         st.download_button("Preuzmi CSV",csv,"racuni.csv",use_container_width=True)
-    st.markdown('</div>',unsafe_allow_html=True)
