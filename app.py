@@ -16,7 +16,8 @@ st.markdown("""
 header {visibility:hidden;}
 #MainMenu {visibility:hidden;}
 footer {visibility:hidden;}
-.block-container {max-width:1500px; padding-top:1rem; padding-bottom:2rem;}
+.block-container {max-width:1600px; padding-top:1rem; padding-bottom:2rem;}
+[data-testid="stDataEditor"] {min-height:600px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -110,7 +111,7 @@ if st.session_state.results:
     st.divider()
 
     # ── PDF pregled (lijevo) + Tabela (desno) ──
-    col_pdf, col_table = st.columns([2, 3])
+    col_pdf, col_table = st.columns([2, 4])
 
     with col_pdf:
         st.subheader("PDF pregled")
@@ -124,7 +125,7 @@ if st.session_state.results:
         pdf_bytes = st.session_state.pdf_map.get(selected)
         if pdf_bytes:
             st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf", use_container_width=True)
-            pages = convert_from_bytes(pdf_bytes, dpi=150)
+            pages = convert_from_bytes(pdf_bytes, dpi=200)
             for page in pages:
                 st.image(page, use_container_width=True)
 
