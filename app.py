@@ -222,15 +222,6 @@ elif st.session_state.page == "kif":
     if st.session_state.results:
         with top_left:
             st.divider()
-            for t, msg in st.session_state.logs:
-                if t == "ok":
-                    st.success(msg, icon="✅")
-                elif t == "err":
-                    st.error(msg, icon="❌")
-                else:
-                    st.warning(msg, icon="⚠️")
-
-            st.divider()
             st.subheader("Podaci")
             st.caption("Klikni na polje u tabeli da edituješ prije downloada")
 
