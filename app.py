@@ -35,6 +35,12 @@ div.stDownloadButton > button {
 div.stDownloadButton > button:hover {
     background:#0b6e31; color:white;
 }
+#pdf_download > button {
+    background:#18181b !important; color:white !important;
+}
+#pdf_download > button:hover {
+    background:#3f3f46 !important; color:white !important;
+}
 button[kind="primary"] {
     background:#0e8a3e !important; color:white !important; border:none !important;
 }
@@ -222,7 +228,7 @@ if st.session_state.results:
 
         pdf_bytes = st.session_state.pdf_map.get(selected)
         if pdf_bytes:
-            st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf", use_container_width=True)
+            st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf", use_container_width=True, key="pdf_download")
             pages = convert_from_bytes(pdf_bytes, dpi=150)
             for page in pages:
                 st.image(page, use_container_width=True)
