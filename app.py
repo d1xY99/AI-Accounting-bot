@@ -104,22 +104,21 @@ if process_clicked:
 # ── Rezultati ──
 if st.session_state.results:
 
-    # Status log
-    st.divider()
-    for t, msg in st.session_state.logs:
-        if t == "ok":
-            st.success(msg, icon="✅")
-        elif t == "err":
-            st.error(msg, icon="❌")
-        else:
-            st.warning(msg, icon="⚠️")
-
-    st.divider()
-
-    # ── Tabela (lijevo) + PDF (desno) ──
+    # ── Lijeva kolona (status + tabela + export) / Desna kolona (PDF) ──
     col_table, col_pdf = st.columns([3, 2])
 
     with col_table:
+        # Status log
+        st.divider()
+        for t, msg in st.session_state.logs:
+            if t == "ok":
+                st.success(msg, icon="✅")
+            elif t == "err":
+                st.error(msg, icon="❌")
+            else:
+                st.warning(msg, icon="⚠️")
+
+        st.divider()
         st.subheader("Podaci")
         st.caption("Klikni na polje u tabeli da edituješ prije downloada")
 
@@ -136,7 +135,40 @@ if st.session_state.results:
             key="data_editor",
         )
 
+        # Export
+        def create_excel(dataframe):
+            output = BytesIO()
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Racuni"
+            for c, h in enumerate(KIF_HEADERS, 1):
+                ws.cell(row=1, column=c, value=h)
+            for r, row in dataframe.iterrows():
+                for c, h in enumerate(KIF_HEADERS, 1):
+                    ws.cell(row=r + 2, column=c, value=row.get(h, ""))
+            wb.save(output)
+            return output.getvalue()
+
+        st.divider()
+        e1, e2 = st.columns(2)
+        with e1:
+            st.download_button(
+                "Preuzmi Excel",
+                create_excel(edited_df),
+                "racuni.xlsx",
+                type="primary",
+                use_container_width=True,
+            )
+        with e2:
+            st.download_button(
+                "Preuzmi CSV",
+                edited_df.to_csv(index=False, sep=";", encoding="utf-8-sig"),
+                "racuni.csv",
+                use_container_width=True,
+            )
+
     with col_pdf:
+        st.divider()
         st.subheader("PDF pregled")
 
         selected = st.selectbox(
@@ -151,36 +183,3 @@ if st.session_state.results:
             pages = convert_from_bytes(pdf_bytes, dpi=150)
             for page in pages:
                 st.image(page, use_container_width=True)
-
-    # ── Export ──
-    st.divider()
-
-    def create_excel(dataframe):
-        output = BytesIO()
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Racuni"
-        for c, h in enumerate(KIF_HEADERS, 1):
-            ws.cell(row=1, column=c, value=h)
-        for r, row in dataframe.iterrows():
-            for c, h in enumerate(KIF_HEADERS, 1):
-                ws.cell(row=r + 2, column=c, value=row.get(h, ""))
-        wb.save(output)
-        return output.getvalue()
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.download_button(
-            "Preuzmi Excel",
-            create_excel(edited_df),
-            "racuni.xlsx",
-            type="primary",
-            use_container_width=True,
-        )
-    with c2:
-        st.download_button(
-            "Preuzmi CSV",
-            edited_df.to_csv(index=False, sep=";", encoding="utf-8-sig"),
-            "racuni.csv",
-            use_container_width=True,
-        )
