@@ -4,269 +4,241 @@ from io import BytesIO
 from openpyxl import Workbook
 from processor import process_pdf, KIF_HEADERS
 
-# ---------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------
+# ------------------------------------------------
+# PAGE
+# ------------------------------------------------
 st.set_page_config(
-    page_title="BS BIRO - Obrada Računa",
+    page_title="BS BIRO",
     page_icon="📄",
     layout="wide",
 )
 
-# ---------------------------------------------------
-# SHADCN-LIKE STYLE
-# ---------------------------------------------------
+# ------------------------------------------------
+# MODERN APP STYLE
+# ------------------------------------------------
 st.markdown("""
 <style>
 
+/* page width */
 .block-container {
-    padding-top: 2rem;
-    padding-bottom: 2rem;
-    max-width: 1200px;
+    max-width: 1300px;
+    padding-top: 1.5rem;
+    padding-bottom: 4rem;
 }
 
-html, body, [class*="css"]  {
-    font-family: Inter, ui-sans-serif, system-ui;
+/* typography */
+html, body, [class*="css"] {
+    font-family: Inter, system-ui, sans-serif;
 }
 
-/* HEADER */
-.app-title {
-    font-size: 1.9rem;
-    font-weight: 600;
-    letter-spacing: -0.02em;
+/* header */
+.header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:1.5rem;
 }
 
-.app-subtitle {
-    color: #71717a;
-    font-size: 0.95rem;
-    margin-top: 0.25rem;
+.title {
+    font-size:1.7rem;
+    font-weight:600;
+    letter-spacing:-0.02em;
 }
 
-/* CARDS */
-.card {
-    border: 1px solid #e4e4e7;
-    background: white;
-    border-radius: 14px;
-    padding: 1.25rem 1.25rem;
-    margin-bottom: 1rem;
+.subtitle {
+    color:#6b7280;
+    font-size:0.95rem;
 }
 
-.card-muted {
-    background: #fafafa;
-}
-
-/* BUTTONS */
-.stButton>button {
-    border-radius: 10px;
-    font-weight: 500;
-    border: 1px solid #e4e4e7;
-}
-
-.stButton>button[kind="primary"] {
-    background: black;
-    color: white;
-    border: none;
-}
-
-/* BADGES */
-.badge {
-    display: block;
-    padding: 8px 12px;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 500;
-    margin-bottom: 6px;
-}
-
-.badge-success { background:#ecfdf5; color:#047857; }
-.badge-error   { background:#fef2f2; color:#b91c1c; }
-.badge-warn    { background:#fffbeb; color:#b45309; }
-
-/* DATA EDITOR */
-.stDataEditor {
-    border: 1px solid #e4e4e7;
-    border-radius: 12px;
-    overflow: hidden;
-}
-
-/* FILE UPLOAD */
+/* dropzone */
 [data-testid="stFileUploader"] {
-    border: 2px dashed #e4e4e7;
-    border-radius: 14px;
-    padding: 20px;
-    background: #fafafa;
+    border:2px dashed #e5e7eb;
+    border-radius:16px;
+    padding:45px;
+    background:#fafafa;
+    transition:all .2s ease;
+}
+
+[data-testid="stFileUploader"]:hover {
+    border-color:#9ca3af;
+    background:#f3f4f6;
+}
+
+/* table */
+.stDataEditor {
+    border:1px solid #e5e7eb;
+    border-radius:14px;
+    overflow:hidden;
+}
+
+/* process log */
+.log-success {
+    background:#f0fdf4;
+    border:1px solid #bbf7d0;
+    padding:8px 12px;
+    border-radius:10px;
+    margin-bottom:6px;
+    font-size:13px;
+}
+
+.log-error {
+    background:#fef2f2;
+    border:1px solid #fecaca;
+    padding:8px 12px;
+    border-radius:10px;
+    margin-bottom:6px;
+    font-size:13px;
+}
+
+.log-warn {
+    background:#fffbeb;
+    border:1px solid #fde68a;
+    padding:8px 12px;
+    border-radius:10px;
+    margin-bottom:6px;
+    font-size:13px;
+}
+
+/* sticky export bar */
+.export-bar {
+    position:fixed;
+    bottom:0;
+    left:0;
+    right:0;
+    background:white;
+    border-top:1px solid #e5e7eb;
+    padding:14px 30px;
+    box-shadow:0 -6px 20px rgba(0,0,0,0.04);
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # HEADER
-# ---------------------------------------------------
+# ------------------------------------------------
 st.markdown("""
-<div class="card card-muted">
-    <div class="app-title">BS BIRO</div>
-    <div class="app-subtitle">
-        AI ekstrakcija podataka iz PDF računa → Excel spreman za knjigovodstvo
+<div class="header">
+    <div>
+        <div class="title">BS BIRO</div>
+        <div class="subtitle">Automatsko prepoznavanje podataka iz PDF računa</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------
-# SIDEBAR SETTINGS
-# ---------------------------------------------------
-with st.sidebar:
-    st.markdown("### ⚙️ Postavke")
-    api_key = st.text_input("OpenAI API ključ", type="password")
-    st.caption("Ključ se koristi samo u ovoj sesiji.")
-
-if not api_key:
-    st.warning("Unesi OpenAI API ključ da bi aplikacija radila.")
-    st.stop()
-
-# ---------------------------------------------------
-# FILE UPLOAD
-# ---------------------------------------------------
-st.markdown('<div class="card">', unsafe_allow_html=True)
-
+# ------------------------------------------------
+# UPLOAD
+# ------------------------------------------------
 uploaded_files = st.file_uploader(
-    "Prevuci PDF račune ovdje",
+    "Prevuci ili odaberi PDF račune",
     type=["pdf"],
     accept_multiple_files=True,
 )
 
 if not uploaded_files:
-    st.caption("Podržano: više računa odjednom • AI automatski prepoznaje dobavljača, iznos i broj računa")
+    st.info("Dodaj račune da započne obrada")
     st.stop()
 
-st.success(f"{len(uploaded_files)} fajlova spremno za obradu")
-st.markdown('</div>', unsafe_allow_html=True)
+st.success(f"{len(uploaded_files)} računa spremno")
 
-# ---------------------------------------------------
-# SESSION STATE
-# ---------------------------------------------------
+# ------------------------------------------------
+# STATE
+# ------------------------------------------------
 if "results" not in st.session_state:
     st.session_state.results = []
-if "processed_files" not in st.session_state:
-    st.session_state.processed_files = set()
+if "logs" not in st.session_state:
+    st.session_state.logs = []
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # PROCESS BUTTON
-# ---------------------------------------------------
-if st.button("▶ Obradi račune", type="primary", use_container_width=True):
+# ------------------------------------------------
+if st.button("Obradi račune", use_container_width=True):
 
     st.session_state.results = []
-    st.session_state.processed_files = set()
+    st.session_state.logs = []
 
-    progress = st.progress(0, text="Pokrećem obradu...")
-    log_container = st.container()
+    progress = st.progress(0)
 
-    seen_numbers = set()
+    seen = set()
 
     for i, file in enumerate(uploaded_files):
 
-        progress.progress(
-            i / len(uploaded_files),
-            text=f"Obrađujem {file.name}"
-        )
+        try:
+            data = process_pdf(file.read(), filename=file.name)
 
-        with log_container:
-            with st.spinner(f"AI obrađuje {file.name}..."):
-                try:
-                    pdf_bytes = file.read()
-                    data = process_pdf(pdf_bytes, filename=file.name, api_key=api_key)
+            broj = data.get("BRDOKFAKT", "")
 
-                    broj = data.get("BRDOKFAKT", "")
-                    if broj and broj in seen_numbers:
-                        st.markdown(f'<div class="badge badge-warn">{file.name} • duplikat {broj}</div>', unsafe_allow_html=True)
-                        continue
+            if broj and broj in seen:
+                st.session_state.logs.append(("warn", f"{file.name} duplikat {broj}"))
+                continue
 
-                    seen_numbers.add(broj)
-                    st.session_state.results.append(data)
+            seen.add(broj)
+            st.session_state.results.append(data)
+            st.session_state.logs.append(("ok", f"{file.name} • {data.get('NAZIVPP','?')} • {data.get('IZNAKFT','?')} KM"))
 
-                    st.markdown(
-                        f'<div class="badge badge-success">{file.name} • {data.get("NAZIVPP","?")} • {data.get("IZNAKFT","?")} KM</div>',
-                        unsafe_allow_html=True
-                    )
+        except Exception as e:
+            st.session_state.logs.append(("err", f"{file.name} • {str(e)}"))
 
-                except Exception as e:
-                    st.markdown(
-                        f'<div class="badge badge-error">{file.name} • Greška: {str(e)}</div>',
-                        unsafe_allow_html=True
-                    )
+        progress.progress((i+1)/len(uploaded_files))
 
-    progress.progress(1.0, text="Obrada završena")
-
-# ---------------------------------------------------
-# RESULTS TABLE
-# ---------------------------------------------------
+# ------------------------------------------------
+# RESULTS VIEW
+# ------------------------------------------------
 if st.session_state.results:
 
-    st.markdown("""
-    <div class="card">
-    <h3>Rezultati</h3>
-    <p style="color:#71717a;margin-top:-6px">
-    Klikni u polje i ispravi ako AI pogriješi prije exporta
-    </p>
-    """, unsafe_allow_html=True)
+    left, right = st.columns([1,2])
 
-    df = pd.DataFrame(st.session_state.results, columns=KIF_HEADERS)
+    # LOG PANEL
+    with left:
+        st.subheader("Obrada")
+        for t, msg in st.session_state.logs:
+            cls = {"ok":"log-success","err":"log-error","warn":"log-warn"}[t]
+            st.markdown(f'<div class="{cls}">{msg}</div>', unsafe_allow_html=True)
 
-    for col in KIF_HEADERS:
-        if col not in df.columns:
-            df[col] = ""
+    # TABLE PANEL
+    with right:
+        st.subheader("Pregled i ispravka")
 
-    edited_df = st.data_editor(
-        df[KIF_HEADERS],
-        use_container_width=True,
-        num_rows="dynamic",
-        hide_index=True,
-    )
+        df = pd.DataFrame(st.session_state.results, columns=KIF_HEADERS)
+        for col in KIF_HEADERS:
+            if col not in df.columns:
+                df[col] = ""
 
-    st.markdown("</div>", unsafe_allow_html=True)
+        edited_df = st.data_editor(
+            df[KIF_HEADERS],
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",
+        )
 
-    # ---------------------------------------------------
-    # EXPORTS
-    # ---------------------------------------------------
+    # ------------------------------------------------
+    # EXPORT BAR
+    # ------------------------------------------------
     def create_excel(dataframe):
         output = BytesIO()
         wb = Workbook()
         ws = wb.active
-        ws.title = "Racuni"
 
         for col, header in enumerate(KIF_HEADERS, start=1):
             ws.cell(row=1, column=col, value=header)
 
-        for row_idx, row in dataframe.iterrows():
-            for col_idx, header in enumerate(KIF_HEADERS, start=1):
-                ws.cell(row=row_idx + 2, column=col_idx, value=row.get(header, ""))
+        for r, row in dataframe.iterrows():
+            for c, header in enumerate(KIF_HEADERS, start=1):
+                ws.cell(row=r+2, column=c, value=row.get(header,""))
 
         wb.save(output)
         return output.getvalue()
 
-    excel_data = create_excel(edited_df)
-    csv_data = edited_df.to_csv(index=False, sep=";", encoding="utf-8-sig")
+    excel = create_excel(edited_df)
+    csv = edited_df.to_csv(index=False, sep=";", encoding="utf-8-sig")
 
-    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="export-bar">', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
 
     with col1:
-        st.download_button(
-            label="⬇ Excel",
-            data=excel_data,
-            file_name="racuni.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="primary",
-            use_container_width=True,
-        )
+        st.download_button("Preuzmi Excel", excel, "racuni.xlsx", use_container_width=True)
 
     with col2:
-        st.download_button(
-            label="⬇ CSV",
-            data=csv_data,
-            file_name="racuni.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+        st.download_button("Preuzmi CSV", csv, "racuni.csv", use_container_width=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
