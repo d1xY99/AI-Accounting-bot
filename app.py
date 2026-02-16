@@ -144,10 +144,7 @@ if process_clicked:
 # ── Rezultati ──
 if st.session_state.results:
 
-    # ── Lijeva kolona (status + tabela + export) / Desna kolona (PDF) ──
-    col_table, col_pdf = st.columns([3, 2])
-
-    with col_table:
+    with top_left:
         # Status log
         st.divider()
         for t, msg in st.session_state.logs:
@@ -207,7 +204,7 @@ if st.session_state.results:
                 use_container_width=True,
             )
 
-    with col_pdf:
+    with top_right:
         st.subheader("PDF pregled")
 
         selected = st.selectbox(
