@@ -12,7 +12,8 @@ st.set_page_config(page_title="KIF - BS BIRO", page_icon="📄", layout="wide")
 # ── Provjera prijave ──
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.warning("Nisi prijavljen. Vrati se na početnu stranicu.")
-    st.page_link("app.py", label="Idi na početnu stranicu", icon="🏠")
+    if st.button("🏠 Idi na početnu stranicu"):
+        st.switch_page("app.py")
     st.stop()
 
 # ── API key (tiho iz secrets ili env) ──

@@ -7,7 +7,8 @@ st.set_page_config(page_title="KUF - BS BIRO", page_icon="📄", layout="centere
 # ── Provjera prijave ──
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.warning("Nisi prijavljen. Vrati se na početnu stranicu.")
-    st.page_link("app.py", label="Idi na početnu stranicu", icon="🏠")
+    if st.button("🏠 Idi na početnu stranicu"):
+        st.switch_page("app.py")
     st.stop()
 
 # ── CSS ──
@@ -46,6 +47,7 @@ st.markdown("---")
 
 st.info("KUF modul je trenutno u izradi. Ova funkcionalnost će biti dostupna uskoro.")
 
-st.page_link("app.py", label="Nazad na početnu stranicu", icon="🏠", use_container_width=True)
+if st.button("🏠 Nazad na početnu stranicu", use_container_width=True):
+    st.switch_page("app.py")
 
 st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic</div>', unsafe_allow_html=True)

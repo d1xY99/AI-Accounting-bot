@@ -75,11 +75,13 @@ st.subheader("Odaberi modul")
 col1, col2 = st.columns(2)
 
 with col1:
-    st.page_link("pages/1_KIF.py", label="KIF — Knjiga Izlaznih Faktura", icon="📤", use_container_width=True)
+    if st.button("📤 KIF — Knjiga Izlaznih Faktura", use_container_width=True):
+        st.switch_page("pages/1_KIF.py")
     st.caption("Obrada izlaznih računa koje tvoja firma izdaje kupcima.")
 
 with col2:
-    st.page_link("pages/2_KUF.py", label="KUF — Knjiga Ulaznih Faktura", icon="📥", use_container_width=True)
+    if st.button("📥 KUF — Knjiga Ulaznih Faktura", use_container_width=True):
+        st.switch_page("pages/2_KUF.py")
     st.caption("Obrada ulaznih računa koje tvoja firma prima od dobavljača.")
 
 st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic</div>', unsafe_allow_html=True)
