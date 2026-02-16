@@ -16,7 +16,7 @@ st.markdown("""
 header {visibility:hidden;}
 #MainMenu {visibility:hidden;}
 footer {visibility:hidden;}
-.block-container {max-width:1600px; padding-top:1rem; padding-bottom:2rem;}
+.block-container {max-width:100%; padding-top:1rem; padding-bottom:2rem; padding-left:2rem; padding-right:2rem;}
 [data-testid="stDataEditor"] {min-height:600px;}
 </style>
 """, unsafe_allow_html=True)
@@ -110,38 +110,39 @@ if st.session_state.results:
 
     st.divider()
 
-    # ── Tabela (lijevo) + PDF (desno) ──
-    col_table, col_pdf = st.columns([3, 2])
+    # ── Tabela (puna širina) ──
+    st.subheader("Podaci")
+    st.caption("Klikni na polje u tabeli da edituješ prije downloada")
 
-    with col_table:
-        st.subheader("Podaci")
-        st.caption("Klikni na polje u tabeli da edituješ prije downloada")
+    df = pd.DataFrame(st.session_state.results, columns=KIF_HEADERS)
+    for col in KIF_HEADERS:
+        if col not in df.columns:
+            df[col] = ""
 
-        df = pd.DataFrame(st.session_state.results, columns=KIF_HEADERS)
-        for col in KIF_HEADERS:
-            if col not in df.columns:
-                df[col] = ""
+    edited_df = st.data_editor(
+        df[KIF_HEADERS],
+        use_container_width=True,
+        hide_index=True,
+        num_rows="dynamic",
+        key="data_editor",
+    )
 
-        edited_df = st.data_editor(
-            df[KIF_HEADERS],
-            use_container_width=True,
-            hide_index=True,
-            num_rows="dynamic",
-            key="data_editor",
-        )
+    # ── PDF pregled (ispod tabele) ──
+    st.divider()
+    st.subheader("PDF pregled")
 
-    with col_pdf:
-        st.subheader("PDF pregled")
+    selected = st.selectbox(
+        "Odaberi račun za pregled",
+        options=range(len(st.session_state.results)),
+        format_func=lambda i: f"{st.session_state.results[i].get('NAZIVPP','?')} — {st.session_state.results[i].get('BRDOKFAKT','')}",
+    )
 
-        selected = st.selectbox(
-            "Odaberi račun za pregled",
-            options=range(len(st.session_state.results)),
-            format_func=lambda i: f"{st.session_state.results[i].get('NAZIVPP','?')} — {st.session_state.results[i].get('BRDOKFAKT','')}",
-        )
-
-        pdf_bytes = st.session_state.pdf_map.get(selected)
-        if pdf_bytes:
-            st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf", use_container_width=True)
+    pdf_bytes = st.session_state.pdf_map.get(selected)
+    if pdf_bytes:
+        col_left, col_mid, col_right = st.columns([1, 2, 1])
+        with col_left:
+            st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf")
+        with col_mid:
             pages = convert_from_bytes(pdf_bytes, dpi=150)
             for page in pages:
                 st.image(page, use_container_width=True)
