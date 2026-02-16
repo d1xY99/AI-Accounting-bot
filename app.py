@@ -103,13 +103,11 @@ if st.session_state.page == "home":
             st.session_state.page = "kif"
             st.query_params["page"] = "kif"
             st.rerun()
-        st.caption("Obrada izlaznih računa koje tvoja firma izdaje kupcima.")
     with col2:
         if st.button("📥 KUF — Knjiga Ulaznih Faktura", use_container_width=True):
             st.session_state.page = "kuf"
             st.query_params["page"] = "kuf"
             st.rerun()
-        st.caption("Obrada ulaznih računa koje tvoja firma prima od dobavljača.")
 
     st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic - basic.amir99@gmail.com</div>', unsafe_allow_html=True)
 
