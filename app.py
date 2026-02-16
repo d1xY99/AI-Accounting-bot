@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 import os
-import base64
+import tempfile
 from io import BytesIO
 from openpyxl import Workbook
+from pdf2image import convert_from_bytes
 from processor import process_pdf, KIF_HEADERS
 
 # ── Page config ──
@@ -123,9 +124,9 @@ if st.session_state.results:
         pdf_bytes = st.session_state.pdf_map.get(selected)
         if pdf_bytes:
             st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf", use_container_width=True)
-            b64 = base64.b64encode(pdf_bytes).decode("utf-8")
-            pdf_html = f'<iframe src="data:application/pdf;base64,{b64}" width="100%" height="650" type="application/pdf"></iframe>'
-            st.markdown(pdf_html, unsafe_allow_html=True)
+            pages = convert_from_bytes(pdf_bytes, dpi=150)
+            for page in pages:
+                st.image(page, use_container_width=True)
 
     with col_table:
         st.subheader("Podaci")
