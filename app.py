@@ -6,7 +6,16 @@ from openpyxl import Workbook
 from pdf2image import convert_from_bytes
 from processor import process_pdf, KIF_HEADERS
 
-APP_PASSWORD = "112"
+def get_app_password():
+    try:
+        pw = st.secrets.get("APP_PASSWORD", "")
+        if pw:
+            return pw
+    except Exception:
+        pass
+    return os.environ.get("APP_PASSWORD", "")
+
+APP_PASSWORD = get_app_password()
 
 # ── Session state init ──
 if "authenticated" not in st.session_state:
