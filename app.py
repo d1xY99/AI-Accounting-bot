@@ -54,15 +54,7 @@ with top_left:
         st.markdown('<div class="logo-row"><div class="app-title">BS BIRO</div></div>', unsafe_allow_html=True)
 
     st.caption("Automatska obrada PDF računa")
-    st.markdown("""
-    <div class="steps">
-        <strong>Kako koristiti:</strong><br>
-        1. Upload-uj jedan ili više PDF računa (drag & drop ili klikni Browse)<br>
-        2. Klikni <b>Obradi račune</b> — AI automatski izvlači podatke iz svakog PDF-a<br>
-        3. Pregledaj i edituj podatke u tabeli ako treba<br>
-        4. Preuzmi gotov Excel ili CSV fajl
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div style="color:#94a3b8; font-size:12px; margin-top:2px;">Sva prava zadržana, Amir Basic</div>', unsafe_allow_html=True)
 
     uploaded_files = st.file_uploader(
         "Prevuci ili odaberi PDF račune",
@@ -206,7 +198,15 @@ if st.session_state.results:
             )
 
     with col_pdf:
-        st.divider()
+        st.markdown("""
+        <div class="steps">
+            <strong>Kako koristiti:</strong><br>
+            1. Upload-uj jedan ili više PDF računa (drag & drop ili klikni Browse)<br>
+            2. Klikni <b>Obradi račune</b> — AI automatski izvlači podatke iz svakog PDF-a<br>
+            3. Pregledaj i edituj podatke u tabeli ako treba<br>
+            4. Preuzmi gotov Excel ili CSV fajl
+        </div>
+        """, unsafe_allow_html=True)
         st.subheader("PDF pregled")
 
         selected = st.selectbox(
