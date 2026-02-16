@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import os
-import tempfile
 from io import BytesIO
 from openpyxl import Workbook
 from pdf2image import convert_from_bytes
@@ -18,6 +17,22 @@ header {visibility:hidden;}
 footer {visibility:hidden;}
 .block-container {max-width:100%; padding-top:1rem; padding-bottom:2rem; padding-left:2rem; padding-right:2rem;}
 [data-testid="stDataEditor"] {min-height:600px;}
+
+/* Logo + naslov */
+.logo-row {display:flex; align-items:center; gap:14px; margin-bottom:4px;}
+.logo-row img {height:52px; width:auto;}
+.logo-row .app-title {font-size:2rem; font-weight:700; margin:0;}
+
+/* Opis koraka */
+.steps {background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px 18px; margin:10px 0 16px 0; font-size:13.5px; line-height:1.7; color:#334155;}
+
+/* Dugmad boje */
+div.stDownloadButton > button {
+    background:#18181b; color:white; border:none; border-radius:8px; font-weight:500;
+}
+div.stDownloadButton > button:hover {
+    background:#3f3f46; color:white;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -25,8 +40,29 @@ footer {visibility:hidden;}
 top_left, top_right = st.columns([3, 2])
 
 with top_left:
-    st.title("BS BIRO")
+    # Logo + naslov (dodaj logo.png u root folder projekta)
+    import os as _os
+    _logo_path = _os.path.join(_os.path.dirname(__file__), "logo.png")
+    if _os.path.exists(_logo_path):
+        st.markdown(f"""
+        <div class="logo-row">
+            <img src="data:image/png;base64,{__import__('base64').b64encode(open(_logo_path,'rb').read()).decode()}" />
+            <div class="app-title">BS BIRO</div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="logo-row"><div class="app-title">BS BIRO</div></div>', unsafe_allow_html=True)
+
     st.caption("Automatska obrada PDF računa")
+    st.markdown("""
+    <div class="steps">
+        <strong>Kako koristiti:</strong><br>
+        1. Upload-uj jedan ili više PDF računa (drag & drop ili klikni Browse)<br>
+        2. Klikni <b>Obradi račune</b> — AI automatski izvlači podatke iz svakog PDF-a<br>
+        3. Pregledaj i edituj podatke u tabeli ako treba<br>
+        4. Preuzmi gotov Excel ili CSV fajl
+    </div>
+    """, unsafe_allow_html=True)
 
     uploaded_files = st.file_uploader(
         "Prevuci ili odaberi PDF račune",
@@ -74,32 +110,34 @@ if process_clicked:
     st.session_state.logs = []
     st.session_state.pdf_map = {}
 
-    progress = st.progress(0, text="Pokrećem obradu...")
     seen = set()
 
-    for i, file in enumerate(uploaded_files):
-        progress.progress(i / len(uploaded_files), text=f"Obrađujem {i+1}/{len(uploaded_files)}: {file.name}")
-        try:
-            pdf_bytes = file.read()
-            data = process_pdf(pdf_bytes, filename=file.name, api_key=api_key)
+    with st.spinner("AI obrađuje račune, molimo sačekajte..."):
+        progress = st.progress(0, text="Pokrećem obradu...")
 
-            broj = data.get("BRDOKFAKT", "")
-            if broj and broj in seen:
-                st.session_state.logs.append(("warn", f"{file.name} — duplikat računa {broj}"))
-                continue
+        for i, file in enumerate(uploaded_files):
+            progress.progress(i / len(uploaded_files), text=f"Obrađujem {i+1}/{len(uploaded_files)}: {file.name}")
+            try:
+                pdf_bytes = file.read()
+                data = process_pdf(pdf_bytes, filename=file.name, api_key=api_key)
 
-            seen.add(broj)
-            idx = len(st.session_state.results)
-            st.session_state.results.append(data)
-            st.session_state.pdf_map[idx] = pdf_bytes
-            st.session_state.logs.append(("ok", f"{file.name} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
+                broj = data.get("BRDOKFAKT", "")
+                if broj and broj in seen:
+                    st.session_state.logs.append(("warn", f"{file.name} — duplikat računa {broj}"))
+                    continue
 
-        except Exception as e:
-            st.session_state.logs.append(("err", f"{file.name} — {str(e)}"))
+                seen.add(broj)
+                idx = len(st.session_state.results)
+                st.session_state.results.append(data)
+                st.session_state.pdf_map[idx] = pdf_bytes
+                st.session_state.logs.append(("ok", f"{file.name} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
 
-        progress.progress((i + 1) / len(uploaded_files))
+            except Exception as e:
+                st.session_state.logs.append(("err", f"{file.name} — {str(e)}"))
 
-    progress.progress(1.0, text=f"Gotovo! Obrađeno {len(st.session_state.results)} račun(a)")
+            progress.progress((i + 1) / len(uploaded_files))
+
+        progress.progress(1.0, text=f"Gotovo! Obrađeno {len(st.session_state.results)} račun(a)")
 
 # ── Rezultati ──
 if st.session_state.results:
