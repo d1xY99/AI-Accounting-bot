@@ -16,7 +16,7 @@ header {visibility:hidden;}
 #MainMenu {visibility:hidden;}
 footer {visibility:hidden;}
 .block-container {max-width:100%; padding-top:1rem; padding-bottom:2rem; padding-left:2rem; padding-right:2rem;}
-.stApp {background-color:#ffa06b;}
+.stApp {background-color:#f6d9c0;}
 [data-testid="stDataEditor"] {min-height:600px;}
 
 /* Logo + naslov */
