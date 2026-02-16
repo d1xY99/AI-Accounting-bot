@@ -1,0 +1,7 @@
+streamlit
+openai
+pymupdf
+pdf2image
+openpyxl
+pandas
+Pillow
