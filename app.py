@@ -1,57 +1,28 @@
 import streamlit as st
 import pandas as pd
+import os
 from io import BytesIO
 from openpyxl import Workbook
 from processor import process_pdf, KIF_HEADERS
 
-# ------------------------------------------------
-# PAGE
-# ------------------------------------------------
+# ── Page config ──
 st.set_page_config(page_title="BS BIRO", page_icon="📄", layout="wide")
 
-# ------------------------------------------------
-# STYLE
-# ------------------------------------------------
+# ── CSS ──
 st.markdown("""
 <style>
-
 header {visibility:hidden;}
 #MainMenu {visibility:hidden;}
 footer {visibility:hidden;}
-
-.block-container {max-width:1500px;padding-top:1rem;padding-bottom:5rem;}
-
-.title{font-size:28px;font-weight:650;letter-spacing:-0.02em;}
-.subtitle{color:#6b7280;margin-top:2px;font-size:14px;}
-
-[data-testid="stFileUploader"]{
-border:2px dashed #e5e7eb;border-radius:16px;padding:60px;background:#fafafa;
-}
-
-.stDataEditor{border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;}
-
-.log-success{background:#f0fdf4;border:1px solid #bbf7d0;padding:8px 12px;border-radius:10px;margin-bottom:6px;font-size:13px;}
-.log-error{background:#fef2f2;border:1px solid #fecaca;padding:8px 12px;border-radius:10px;margin-bottom:6px;font-size:13px;}
-.log-warn{background:#fffbeb;border:1px solid #fde68a;padding:8px 12px;border-radius:10px;margin-bottom:6px;font-size:13px;}
-
-.pdfbox{border:1px solid #e5e7eb;border-radius:14px;padding:6px;height:75vh;}
-
+.block-container {max-width:1500px; padding-top:1rem; padding-bottom:2rem;}
 </style>
 """, unsafe_allow_html=True)
 
-# ------------------------------------------------
-# HEADER
-# ------------------------------------------------
-st.markdown("""
-<div>
-<div class="title">BS BIRO</div>
-<div class="subtitle">Automatsko prepoznavanje podataka iz PDF računa</div>
-</div>
-""", unsafe_allow_html=True)
+# ── Header ──
+st.title("BS BIRO")
+st.caption("Automatska obrada PDF računa")
 
-# ------------------------------------------------
-# UPLOAD
-# ------------------------------------------------
+# ── Upload ──
 uploaded_files = st.file_uploader(
     "Prevuci ili odaberi PDF račune",
     type=["pdf"],
@@ -59,141 +30,146 @@ uploaded_files = st.file_uploader(
 )
 
 if not uploaded_files:
-    st.info("Dodaj račune da započne obrada")
+    st.info("Dodaj račune za početak obrade.")
     st.stop()
 
-st.success(f"{len(uploaded_files)} računa spremno")
+st.write(f"**{len(uploaded_files)}** račun(a) odabrano")
 
-# ------------------------------------------------
-# STATE
-# ------------------------------------------------
+# ── Session state ──
 if "results" not in st.session_state:
     st.session_state.results = []
 if "logs" not in st.session_state:
     st.session_state.logs = []
 if "pdf_map" not in st.session_state:
     st.session_state.pdf_map = {}
-if "selected" not in st.session_state:
-    st.session_state.selected = None
-if "edited_table" not in st.session_state:
-    st.session_state.edited_table = None
 
-# ------------------------------------------------
-# PROCESS
-# ------------------------------------------------
-if st.button("Obradi račune", use_container_width=True):
+# ── API key (tiho iz secrets ili env) ──
+def get_api_key():
+    try:
+        key = st.secrets.get("OPENAI_API_KEY", "")
+        if key:
+            return key
+    except Exception:
+        pass
+    return os.environ.get("OPENAI_API_KEY", "")
+
+# ── Obrada ──
+if st.button("Obradi račune", type="primary", use_container_width=True):
+
+    api_key = get_api_key()
+    if not api_key:
+        st.error("OpenAI API ključ nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
+        st.stop()
 
     st.session_state.results = []
     st.session_state.logs = []
     st.session_state.pdf_map = {}
 
-    progress = st.progress(0)
-    seen=set()
+    progress = st.progress(0, text="Pokrećem obradu...")
+    seen = set()
 
-    for i,file in enumerate(uploaded_files):
-
+    for i, file in enumerate(uploaded_files):
+        progress.progress(i / len(uploaded_files), text=f"Obrađujem {i+1}/{len(uploaded_files)}: {file.name}")
         try:
-            pdf_bytes=file.read()
-            data=process_pdf(pdf_bytes,filename=file.name)
+            pdf_bytes = file.read()
+            data = process_pdf(pdf_bytes, filename=file.name, api_key=api_key)
 
-            broj=data.get("BRDOKFAKT","")
-
+            broj = data.get("BRDOKFAKT", "")
             if broj and broj in seen:
-                st.session_state.logs.append(("warn",f"{file.name} duplikat {broj}"))
+                st.session_state.logs.append(("warn", f"{file.name} — duplikat računa {broj}"))
                 continue
 
             seen.add(broj)
+            idx = len(st.session_state.results)
             st.session_state.results.append(data)
-            st.session_state.pdf_map[len(st.session_state.results)-1]=pdf_bytes
-            st.session_state.logs.append(("ok",f"{file.name} • {data.get('NAZIVPP','?')} • {data.get('IZNAKFT','?')} KM"))
+            st.session_state.pdf_map[idx] = pdf_bytes
+            st.session_state.logs.append(("ok", f"{file.name} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
 
         except Exception as e:
-            st.session_state.logs.append(("err",f"{file.name} • {str(e)}"))
+            st.session_state.logs.append(("err", f"{file.name} — {str(e)}"))
 
-        progress.progress((i+1)/len(uploaded_files))
+        progress.progress((i + 1) / len(uploaded_files))
 
-# ------------------------------------------------
-# RESULTS
-# ------------------------------------------------
+    progress.progress(1.0, text=f"Gotovo! Obrađeno {len(st.session_state.results)} račun(a)")
+
+# ── Rezultati ──
 if st.session_state.results:
 
-    left, mid, right = st.columns([0.9,3.6,2.5])
+    # Status log
+    st.divider()
+    for t, msg in st.session_state.logs:
+        if t == "ok":
+            st.success(msg, icon="✅")
+        elif t == "err":
+            st.error(msg, icon="❌")
+        else:
+            st.warning(msg, icon="⚠️")
 
-    # ---------------- LOG ----------------
-    with left:
-        st.markdown("#### Status")
-        st.markdown("<div style='height:72vh;overflow-y:auto'>",unsafe_allow_html=True)
-        for t,msg in st.session_state.logs:
-            cls={"ok":"log-success","err":"log-error","warn":"log-warn"}[t]
-            st.markdown(f'<div class="{cls}">{msg}</div>',unsafe_allow_html=True)
-        st.markdown("</div>",unsafe_allow_html=True)
+    st.divider()
 
-    # ---------------- TABLE ----------------
-    with mid:
-        st.markdown("#### Podaci")
+    # ── PDF pregled (lijevo) + Tabela (desno) ──
+    col_pdf, col_table = st.columns([2, 3])
 
-        df=pd.DataFrame(st.session_state.results,columns=KIF_HEADERS)
+    with col_pdf:
+        st.subheader("PDF pregled")
 
-        for col in KIF_HEADERS:
-            if col not in df.columns:
-                df[col]=""
-
-        # dodaj preview kolonu
-        df.insert(0,"Pregled",[f"R{i}" for i in range(len(df))])
-
-        selected_row = st.radio(
+        selected = st.selectbox(
             "Odaberi račun za pregled",
-            options=df.index,
-            format_func=lambda i: f"{df.loc[i,'NAZIVPP']} — {df.loc[i,'IZNAKFT']} KM",
-            horizontal=False,
-            label_visibility="collapsed"
+            options=range(len(st.session_state.results)),
+            format_func=lambda i: f"{st.session_state.results[i].get('NAZIVPP','?')} — {st.session_state.results[i].get('BRDOKFAKT','')}",
         )
 
+        pdf_bytes = st.session_state.pdf_map.get(selected)
+        if pdf_bytes:
+            st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf", use_container_width=True)
+            st.pdf_viewer(pdf_bytes, height=650)
+
+    with col_table:
+        st.subheader("Podaci")
+        st.caption("Klikni na polje u tabeli da edituješ prije downloada")
+
+        df = pd.DataFrame(st.session_state.results, columns=KIF_HEADERS)
+        for col in KIF_HEADERS:
+            if col not in df.columns:
+                df[col] = ""
+
         edited_df = st.data_editor(
-        df[KIF_HEADERS],
-        use_container_width=True,
-        hide_index=True,
-        key="editor_table"
-    )
+            df[KIF_HEADERS],
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",
+            key="data_editor",
+        )
 
-    # sačuvaj uvijek zadnju verziju
-    st.session_state.edited_table = edited_df
+    # ── Export ──
+    st.divider()
 
-    # ---------------- PDF PREVIEW ----------------
-    with right:
-        st.markdown("#### Original račun")
-
-        if selected_row is not None:
-            pdf_bytes=st.session_state.pdf_map.get(selected_row)
-            if pdf_bytes:
-                st.download_button("Preuzmi PDF",pdf_bytes,"racun.pdf",use_container_width=True)
-                st.pdf_viewer(pdf_bytes,height=720)
-        else:
-            st.info("Odaberi račun lijevo")
-
-    # ------------------------------------------------
-    # EXPORT
-    # ------------------------------------------------
     def create_excel(dataframe):
-        output=BytesIO()
-        wb=Workbook()
-        ws=wb.active
-        for c,h in enumerate(KIF_HEADERS,1):
-            ws.cell(row=1,column=c,value=h)
-        for r,row in dataframe.iterrows():
-            for c,h in enumerate(KIF_HEADERS,1):
-                ws.cell(row=r+2,column=c,value=row.get(h,""))
+        output = BytesIO()
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Racuni"
+        for c, h in enumerate(KIF_HEADERS, 1):
+            ws.cell(row=1, column=c, value=h)
+        for r, row in dataframe.iterrows():
+            for c, h in enumerate(KIF_HEADERS, 1):
+                ws.cell(row=r + 2, column=c, value=row.get(h, ""))
         wb.save(output)
         return output.getvalue()
 
-    export_df = st.session_state.edited_table if st.session_state.edited_table is not None else df[KIF_HEADERS]
-
-    excel = create_excel(export_df)
-    csv = export_df.to_csv(index=False, sep=";", encoding="utf-8-sig")
-
-    st.divider()
-    c1,c2=st.columns(2)
+    c1, c2 = st.columns(2)
     with c1:
-        st.download_button("Preuzmi Excel",excel,"racuni.xlsx",use_container_width=True)
+        st.download_button(
+            "Preuzmi Excel",
+            create_excel(edited_df),
+            "racuni.xlsx",
+            type="primary",
+            use_container_width=True,
+        )
     with c2:
-        st.download_button("Preuzmi CSV",csv,"racuni.csv",use_container_width=True)
+        st.download_button(
+            "Preuzmi CSV",
+            edited_df.to_csv(index=False, sep=";", encoding="utf-8-sig"),
+            "racuni.csv",
+            use_container_width=True,
+        )
