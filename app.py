@@ -7,108 +7,39 @@ from processor import process_pdf, KIF_HEADERS
 # ------------------------------------------------
 # PAGE
 # ------------------------------------------------
-st.set_page_config(
-    page_title="BS BIRO",
-    page_icon="📄",
-    layout="wide",
-)
+st.set_page_config(page_title="BS BIRO", page_icon="📄", layout="wide")
 
 # ------------------------------------------------
-# MODERN APP STYLE
+# STYLE
 # ------------------------------------------------
 st.markdown("""
 <style>
 
-/* page width */
-.block-container {
-    max-width: 1300px;
-    padding-top: 1.5rem;
-    padding-bottom: 4rem;
+header {visibility:hidden;}
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
+
+.block-container {max-width:1500px;padding-top:1rem;padding-bottom:5rem;}
+
+.title{font-size:28px;font-weight:650;letter-spacing:-0.02em;}
+.subtitle{color:#6b7280;margin-top:2px;font-size:14px;}
+
+[data-testid="stFileUploader"]{
+border:2px dashed #e5e7eb;border-radius:16px;padding:60px;background:#fafafa;
 }
 
-/* typography */
-html, body, [class*="css"] {
-    font-family: Inter, system-ui, sans-serif;
-}
+.stDataEditor{border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;}
 
-/* header */
-.header {
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    margin-bottom:1.5rem;
-}
+.log-success{background:#f0fdf4;border:1px solid #bbf7d0;padding:8px 12px;border-radius:10px;margin-bottom:6px;font-size:13px;}
+.log-error{background:#fef2f2;border:1px solid #fecaca;padding:8px 12px;border-radius:10px;margin-bottom:6px;font-size:13px;}
+.log-warn{background:#fffbeb;border:1px solid #fde68a;padding:8px 12px;border-radius:10px;margin-bottom:6px;font-size:13px;}
 
-.title {
-    font-size:1.7rem;
-    font-weight:600;
-    letter-spacing:-0.02em;
-}
+.pdfbox{border:1px solid #e5e7eb;border-radius:14px;padding:6px;height:75vh;}
 
-.subtitle {
-    color:#6b7280;
-    font-size:0.95rem;
-}
-
-/* dropzone */
-[data-testid="stFileUploader"] {
-    border:2px dashed #e5e7eb;
-    border-radius:16px;
-    padding:45px;
-    background:#fafafa;
-    transition:all .2s ease;
-}
-
-[data-testid="stFileUploader"]:hover {
-    border-color:#9ca3af;
-    background:#f3f4f6;
-}
-
-/* table */
-.stDataEditor {
-    border:1px solid #e5e7eb;
-    border-radius:14px;
-    overflow:hidden;
-}
-
-/* process log */
-.log-success {
-    background:#f0fdf4;
-    border:1px solid #bbf7d0;
-    padding:8px 12px;
-    border-radius:10px;
-    margin-bottom:6px;
-    font-size:13px;
-}
-
-.log-error {
-    background:#fef2f2;
-    border:1px solid #fecaca;
-    padding:8px 12px;
-    border-radius:10px;
-    margin-bottom:6px;
-    font-size:13px;
-}
-
-.log-warn {
-    background:#fffbeb;
-    border:1px solid #fde68a;
-    padding:8px 12px;
-    border-radius:10px;
-    margin-bottom:6px;
-    font-size:13px;
-}
-
-/* sticky export bar */
-.export-bar {
-    position:fixed;
-    bottom:0;
-    left:0;
-    right:0;
-    background:white;
-    border-top:1px solid #e5e7eb;
-    padding:14px 30px;
-    box-shadow:0 -6px 20px rgba(0,0,0,0.04);
+.export-bar{
+position:fixed;bottom:0;left:0;right:0;background:white;
+border-top:1px solid #e5e7eb;padding:14px 30px;
+box-shadow:0 -6px 20px rgba(0,0,0,0.04);
 }
 
 </style>
@@ -118,11 +49,9 @@ html, body, [class*="css"] {
 # HEADER
 # ------------------------------------------------
 st.markdown("""
-<div class="header">
-    <div>
-        <div class="title">BS BIRO</div>
-        <div class="subtitle">Automatsko prepoznavanje podataka iz PDF računa</div>
-    </div>
+<div>
+<div class="title">BS BIRO</div>
+<div class="subtitle">Automatsko prepoznavanje podataka iz PDF računa</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -148,97 +77,118 @@ if "results" not in st.session_state:
     st.session_state.results = []
 if "logs" not in st.session_state:
     st.session_state.logs = []
+if "pdf_map" not in st.session_state:
+    st.session_state.pdf_map = {}
+if "selected" not in st.session_state:
+    st.session_state.selected = None
 
 # ------------------------------------------------
-# PROCESS BUTTON
+# PROCESS
 # ------------------------------------------------
 if st.button("Obradi račune", use_container_width=True):
 
     st.session_state.results = []
     st.session_state.logs = []
+    st.session_state.pdf_map = {}
 
     progress = st.progress(0)
+    seen=set()
 
-    seen = set()
-
-    for i, file in enumerate(uploaded_files):
+    for i,file in enumerate(uploaded_files):
 
         try:
-            data = process_pdf(file.read(), filename=file.name)
+            pdf_bytes=file.read()
+            data=process_pdf(pdf_bytes,filename=file.name)
 
-            broj = data.get("BRDOKFAKT", "")
+            broj=data.get("BRDOKFAKT","")
 
             if broj and broj in seen:
-                st.session_state.logs.append(("warn", f"{file.name} duplikat {broj}"))
+                st.session_state.logs.append(("warn",f"{file.name} duplikat {broj}"))
                 continue
 
             seen.add(broj)
             st.session_state.results.append(data)
-            st.session_state.logs.append(("ok", f"{file.name} • {data.get('NAZIVPP','?')} • {data.get('IZNAKFT','?')} KM"))
+            st.session_state.pdf_map[len(st.session_state.results)-1]=pdf_bytes
+            st.session_state.logs.append(("ok",f"{file.name} • {data.get('NAZIVPP','?')} • {data.get('IZNAKFT','?')} KM"))
 
         except Exception as e:
-            st.session_state.logs.append(("err", f"{file.name} • {str(e)}"))
+            st.session_state.logs.append(("err",f"{file.name} • {str(e)}"))
 
         progress.progress((i+1)/len(uploaded_files))
 
 # ------------------------------------------------
-# RESULTS VIEW
+# RESULTS
 # ------------------------------------------------
 if st.session_state.results:
 
-    left, right = st.columns([1,2])
+    left, mid, right = st.columns([0.9,3.6,2.5])
 
-    # LOG PANEL
+    # ---------------- LOG ----------------
     with left:
-        st.subheader("Obrada")
-        for t, msg in st.session_state.logs:
-            cls = {"ok":"log-success","err":"log-error","warn":"log-warn"}[t]
-            st.markdown(f'<div class="{cls}">{msg}</div>', unsafe_allow_html=True)
+        st.markdown("#### Status")
+        st.markdown("<div style='height:72vh;overflow-y:auto'>",unsafe_allow_html=True)
+        for t,msg in st.session_state.logs:
+            cls={"ok":"log-success","err":"log-error","warn":"log-warn"}[t]
+            st.markdown(f'<div class="{cls}">{msg}</div>',unsafe_allow_html=True)
+        st.markdown("</div>",unsafe_allow_html=True)
 
-    # TABLE PANEL
-    with right:
-        st.subheader("Pregled i ispravka")
+    # ---------------- TABLE ----------------
+    with mid:
+        st.markdown("#### Podaci")
 
-        df = pd.DataFrame(st.session_state.results, columns=KIF_HEADERS)
+        df=pd.DataFrame(st.session_state.results,columns=KIF_HEADERS)
         for col in KIF_HEADERS:
             if col not in df.columns:
-                df[col] = ""
+                df[col]=""
 
-        edited_df = st.data_editor(
+        edited_df=st.data_editor(
             df[KIF_HEADERS],
             use_container_width=True,
             hide_index=True,
-            num_rows="dynamic",
+            key="editor"
         )
 
+        # selection
+        selected=st.session_state.get("editor_selected_rows")
+        if selected:
+            st.session_state.selected=selected[0]
+
+    # ---------------- PDF PREVIEW ----------------
+    with right:
+        st.markdown("#### Original račun")
+
+        if st.session_state.selected is not None:
+            pdf_bytes=st.session_state.pdf_map.get(st.session_state.selected)
+            if pdf_bytes:
+                st.markdown('<div class="pdfbox">',unsafe_allow_html=True)
+                st.download_button("Preuzmi PDF",pdf_bytes,"racun.pdf",use_container_width=True)
+                st.pdf_viewer(pdf_bytes,height=700)
+                st.markdown('</div>',unsafe_allow_html=True)
+        else:
+            st.info("Klikni red u tabeli za prikaz računa")
+
     # ------------------------------------------------
-    # EXPORT BAR
+    # EXPORT
     # ------------------------------------------------
     def create_excel(dataframe):
-        output = BytesIO()
-        wb = Workbook()
-        ws = wb.active
-
-        for col, header in enumerate(KIF_HEADERS, start=1):
-            ws.cell(row=1, column=col, value=header)
-
-        for r, row in dataframe.iterrows():
-            for c, header in enumerate(KIF_HEADERS, start=1):
-                ws.cell(row=r+2, column=c, value=row.get(header,""))
-
+        output=BytesIO()
+        wb=Workbook()
+        ws=wb.active
+        for c,h in enumerate(KIF_HEADERS,1):
+            ws.cell(row=1,column=c,value=h)
+        for r,row in dataframe.iterrows():
+            for c,h in enumerate(KIF_HEADERS,1):
+                ws.cell(row=r+2,column=c,value=row.get(h,""))
         wb.save(output)
         return output.getvalue()
 
-    excel = create_excel(edited_df)
-    csv = edited_df.to_csv(index=False, sep=";", encoding="utf-8-sig")
+    excel=create_excel(edited_df)
+    csv=edited_df.to_csv(index=False,sep=";",encoding="utf-8-sig")
 
-    st.markdown('<div class="export-bar">', unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.download_button("Preuzmi Excel", excel, "racuni.xlsx", use_container_width=True)
-
-    with col2:
-        st.download_button("Preuzmi CSV", csv, "racuni.csv", use_container_width=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div class="export-bar">',unsafe_allow_html=True)
+    c1,c2=st.columns(2)
+    with c1:
+        st.download_button("Preuzmi Excel",excel,"racuni.xlsx",use_container_width=True)
+    with c2:
+        st.download_button("Preuzmi CSV",csv,"racuni.csv",use_container_width=True)
+    st.markdown('</div>',unsafe_allow_html=True)
