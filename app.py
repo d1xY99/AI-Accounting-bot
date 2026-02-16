@@ -42,7 +42,7 @@ top_left, top_right = st.columns([3, 2])
 with top_left:
     # Logo + naslov (dodaj logo.png u root folder projekta)
     import os as _os
-    _logo_path = _os.path.join(_os.path.dirname(__file__), "logo.png")
+    _logo_path = _os.path.join(_os.path.dirname(__file__), "images", "logo.png")
     if _os.path.exists(_logo_path):
         st.markdown(f"""
         <div class="logo-row">
