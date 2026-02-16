@@ -21,22 +21,25 @@ footer {visibility:hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# ── Header ──
-st.title("BS BIRO")
-st.caption("Automatska obrada PDF računa")
+# ── Header + Upload (ista širina kao tabela) ──
+top_left, top_right = st.columns([3, 2])
 
-# ── Upload ──
-uploaded_files = st.file_uploader(
-    "Prevuci ili odaberi PDF račune",
-    type=["pdf"],
-    accept_multiple_files=True,
-)
+with top_left:
+    st.title("BS BIRO")
+    st.caption("Automatska obrada PDF računa")
+
+    uploaded_files = st.file_uploader(
+        "Prevuci ili odaberi PDF račune",
+        type=["pdf"],
+        accept_multiple_files=True,
+    )
 
 if not uploaded_files:
     st.info("Dodaj račune za početak obrade.")
     st.stop()
 
-st.write(f"**{len(uploaded_files)}** račun(a) odabrano")
+with top_left:
+    st.write(f"**{len(uploaded_files)}** račun(a) odabrano")
 
 # ── Session state ──
 if "results" not in st.session_state:
@@ -57,7 +60,10 @@ def get_api_key():
     return os.environ.get("OPENAI_API_KEY", "")
 
 # ── Obrada ──
-if st.button("Obradi račune", type="primary", use_container_width=True):
+with top_left:
+    process_clicked = st.button("Obradi račune", type="primary", use_container_width=True)
+
+if process_clicked:
 
     api_key = get_api_key()
     if not api_key:
