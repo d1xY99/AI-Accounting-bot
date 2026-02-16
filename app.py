@@ -90,7 +90,7 @@ if st.session_state.page == "home":
                 st.rerun()
             else:
                 st.error("Pogrešna šifra. Pokušaj ponovo.")
-        st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic( basic.amir99@gmail.com )</div>', unsafe_allow_html=True)
+        st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic - basic.amir99@gmail.com</div>', unsafe_allow_html=True)
         st.stop()
 
     # Authenticated - show navigation
@@ -111,7 +111,7 @@ if st.session_state.page == "home":
             st.rerun()
         st.caption("Obrada ulaznih računa koje tvoja firma prima od dobavljača.")
 
-    st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic( basic.amir99@gmail.com )</div>', unsafe_allow_html=True)
+    st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic - basic.amir99@gmail.com</div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════
 # KIF PAGE
@@ -162,7 +162,7 @@ elif st.session_state.page == "kif":
             2. Klikni <b>Obradi račune</b> — AI automatski izvlači podatke iz svakog PDF-a<br>
             3. Pregledaj i edituj podatke u tabeli ako treba<br>
             4. Preuzmi gotov Excel ili CSV fajl
-            <div class="copyright">Sva prava zadržana, Amir Basic( basic.amir99@gmail.com )</div>
+            <div class="copyright">Sva prava zadržana, Amir Basic - basic.amir99@gmail.com</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -309,4 +309,4 @@ elif st.session_state.page == "kuf":
     st.caption("Knjiga Ulaznih Faktura")
     st.markdown("---")
     st.info("KUF modul je trenutno u izradi. Ova funkcionalnost će biti dostupna uskoro.")
-    st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic( basic.amir99@gmail.com )</div>', unsafe_allow_html=True)
+    st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic - basic.amir99@gmail.com</div>', unsafe_allow_html=True)
