@@ -17,41 +17,7 @@ KIF_HEADERS = [
 ]
 
 POZNATI_PARTNERI = [
-    {
-        "kljucne_rijeci": ["TELEMACH", "telemach"],
-        "naziv": "TELEMACH BH d.o.o. Sarajevo",
-        "id": "4200440040009",
-        "pdv": "200440040009",
-        "adresa": "Džemala Bijedića 216, 71000 Sarajevo",
-    },
-    {
-        "kljucne_rijeci": ["BH Telecom", "bhtelecom"],
-        "naziv": "BH Telecom d.d. Sarajevo",
-        "id": "4200211100005",
-        "pdv": "200211100005",
-        "adresa": "Franca Lehara 7, 71000 Sarajevo",
-    },
-    {
-        "kljucne_rijeci": ["Elektroprivreda", "EPBIH", "epbih"],
-        "naziv": "JP Elektroprivreda BiH d.d. Sarajevo",
-        "id": "4200225150005",
-        "pdv": "200225150005",
-        "adresa": "Vilsonovo šetalište 15, 71000 Sarajevo",
-    },
-    {
-        "kljucne_rijeci": ["Grijanje", "GRIJANJE", "grijanje"],
-        "naziv": "JP Grijanje d.o.o. Zenica",
-        "id": "4218065010003",
-        "pdv": "218065010003",
-        "adresa": "Bilmišće br. 107, 72000 Zenica",
-    },
-    {
-        "kljucne_rijeci": ["Vodovod", "VODOVOD", "vodovod"],
-        "naziv": "JP Vodovod i kanalizacija d.o.o. Zenica",
-        "id": "4218065170006",
-        "pdv": "218065170006",
-        "adresa": "Bistua Nuova 17, 72000 Zenica",
-    },
+    #todo
 ]
 
 EXTRACTION_PROMPT = """Ovo je račun/faktura. Izvuci polja i vrati kao JSON objekat.
