@@ -163,11 +163,11 @@ elif st.session_state.page == "kif":
 
         uploaded_files = st.file_uploader("Prevuci ili odaberi PDF račune", type=["pdf"], accept_multiple_files=True)
 
-    if not uploaded_files:
-        st.info("Dodaj račune za početak obrade.")
-        st.stop()
-
     with top_left:
+        if not uploaded_files:
+            st.info("Dodaj račune za početak obrade.")
+            st.stop()
+
         st.write(f"**{len(uploaded_files)}** račun(a) odabrano")
 
     # Session state
@@ -183,35 +183,37 @@ elif st.session_state.page == "kif":
 
     if process_clicked:
         api_key = get_api_key()
-        if not api_key:
-            st.error("OpenAI API ključ nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
-            st.stop()
+        with top_left:
+            if not api_key:
+                st.error("OpenAI API ključ nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
+                st.stop()
 
         st.session_state.results = []
         st.session_state.logs = []
         st.session_state.pdf_map = {}
         seen = set()
 
-        with st.spinner("AI obrađuje račune, molimo sačekajte..."):
-            progress = st.progress(0, text="Pokrećem obradu...")
-            for i, file in enumerate(uploaded_files):
-                progress.progress(i / len(uploaded_files), text=f"Obrađujem {i+1}/{len(uploaded_files)}: {file.name}")
-                try:
-                    pdf_bytes = file.read()
-                    data = process_pdf(pdf_bytes, filename=file.name, api_key=api_key)
-                    broj = data.get("BRDOKFAKT", "")
-                    if broj and broj in seen:
-                        st.session_state.logs.append(("warn", f"{file.name} — duplikat računa {broj}"))
-                        continue
-                    seen.add(broj)
-                    idx = len(st.session_state.results)
-                    st.session_state.results.append(data)
-                    st.session_state.pdf_map[idx] = pdf_bytes
-                    st.session_state.logs.append(("ok", f"{file.name} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
-                except Exception as e:
-                    st.session_state.logs.append(("err", f"{file.name} — {str(e)}"))
-                progress.progress((i + 1) / len(uploaded_files))
-            progress.progress(1.0, text=f"Gotovo! Obrađeno {len(st.session_state.results)} račun(a)")
+        with top_left:
+            with st.spinner("AI obrađuje račune, molimo sačekajte..."):
+                progress = st.progress(0, text="Pokrećem obradu...")
+                for i, file in enumerate(uploaded_files):
+                    progress.progress(i / len(uploaded_files), text=f"Obrađujem {i+1}/{len(uploaded_files)}: {file.name}")
+                    try:
+                        pdf_bytes = file.read()
+                        data = process_pdf(pdf_bytes, filename=file.name, api_key=api_key)
+                        broj = data.get("BRDOKFAKT", "")
+                        if broj and broj in seen:
+                            st.session_state.logs.append(("warn", f"{file.name} — duplikat računa {broj}"))
+                            continue
+                        seen.add(broj)
+                        idx = len(st.session_state.results)
+                        st.session_state.results.append(data)
+                        st.session_state.pdf_map[idx] = pdf_bytes
+                        st.session_state.logs.append(("ok", f"{file.name} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
+                    except Exception as e:
+                        st.session_state.logs.append(("err", f"{file.name} — {str(e)}"))
+                    progress.progress((i + 1) / len(uploaded_files))
+                progress.progress(1.0, text=f"Gotovo! Obrađeno {len(st.session_state.results)} račun(a)")
 
     # Results
     if st.session_state.results:
