@@ -30,10 +30,16 @@ footer {visibility:hidden;}
 
 /* Dugmad boje */
 div.stDownloadButton > button {
-    background:#18181b; color:white; border:none; border-radius:8px; font-weight:500;
+    background:#0e8a3e; color:white; border:none; border-radius:8px; font-weight:500;
 }
 div.stDownloadButton > button:hover {
-    background:#3f3f46; color:white;
+    background:#0b6e31; color:white;
+}
+button[kind="primary"] {
+    background:#0e8a3e !important; color:white !important; border:none !important;
+}
+button[kind="primary"]:hover {
+    background:#0b6e31 !important; color:white !important;
 }
 </style>
 """, unsafe_allow_html=True)
