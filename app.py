@@ -173,6 +173,12 @@ elif st.session_state.page == "kif":
 
         st.write(f"**{len(uploaded_files)}** račun(a) odabrano")
 
+        # Show per-file status after processing
+        if st.session_state.get("logs"):
+            for t, msg in st.session_state.logs:
+                icon = "✅" if t == "ok" else "❌" if t == "err" else "⚠️"
+                st.caption(f"{icon} {msg}")
+
     # Session state
     if "results" not in st.session_state:
         st.session_state.results = []
