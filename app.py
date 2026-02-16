@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import base64
 from io import BytesIO
 from openpyxl import Workbook
 from processor import process_pdf, KIF_HEADERS
@@ -122,7 +123,9 @@ if st.session_state.results:
         pdf_bytes = st.session_state.pdf_map.get(selected)
         if pdf_bytes:
             st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf", use_container_width=True)
-            st.pdf_viewer(pdf_bytes, height=650)
+            b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+            pdf_html = f'<iframe src="data:application/pdf;base64,{b64}" width="100%" height="650" type="application/pdf"></iframe>'
+            st.markdown(pdf_html, unsafe_allow_html=True)
 
     with col_table:
         st.subheader("Podaci")
