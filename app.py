@@ -173,11 +173,13 @@ elif st.session_state.page == "kif":
 
         st.write(f"**{len(uploaded_files)}** račun(a) odabrano")
 
-        # Show per-file status after processing
+        # Show only errors and warnings
         if st.session_state.get("logs"):
             for t, msg in st.session_state.logs:
-                icon = "✅" if t == "ok" else "❌" if t == "err" else "⚠️"
-                st.caption(f"{icon} {msg}")
+                if t == "err":
+                    st.error(msg, icon="❌")
+                elif t == "warn":
+                    st.warning(msg, icon="⚠️")
 
     # Session state
     if "results" not in st.session_state:
