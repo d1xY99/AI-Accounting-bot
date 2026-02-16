@@ -110,41 +110,39 @@ if st.session_state.results:
 
     st.divider()
 
-    # ── PDF pregled (lijevo) + Tabela (desno) ──
-    col_pdf, col_table = st.columns([2, 4])
+    # ── Tabela (puna širina) ──
+    st.subheader("Podaci")
+    st.caption("Klikni na polje u tabeli da edituješ prije downloada")
 
-    with col_pdf:
-        st.subheader("PDF pregled")
+    df = pd.DataFrame(st.session_state.results, columns=KIF_HEADERS)
+    for col in KIF_HEADERS:
+        if col not in df.columns:
+            df[col] = ""
 
-        selected = st.selectbox(
-            "Odaberi račun za pregled",
-            options=range(len(st.session_state.results)),
-            format_func=lambda i: f"{st.session_state.results[i].get('NAZIVPP','?')} — {st.session_state.results[i].get('BRDOKFAKT','')}",
-        )
+    edited_df = st.data_editor(
+        df[KIF_HEADERS],
+        use_container_width=True,
+        hide_index=True,
+        num_rows="dynamic",
+        key="data_editor",
+    )
 
-        pdf_bytes = st.session_state.pdf_map.get(selected)
-        if pdf_bytes:
-            st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf", use_container_width=True)
-            pages = convert_from_bytes(pdf_bytes, dpi=200)
-            for page in pages:
-                st.image(page, use_container_width=True)
+    # ── PDF pregled (ispod tabele) ──
+    st.divider()
+    st.subheader("PDF pregled")
 
-    with col_table:
-        st.subheader("Podaci")
-        st.caption("Klikni na polje u tabeli da edituješ prije downloada")
+    selected = st.selectbox(
+        "Odaberi račun za pregled",
+        options=range(len(st.session_state.results)),
+        format_func=lambda i: f"{st.session_state.results[i].get('NAZIVPP','?')} — {st.session_state.results[i].get('BRDOKFAKT','')}",
+    )
 
-        df = pd.DataFrame(st.session_state.results, columns=KIF_HEADERS)
-        for col in KIF_HEADERS:
-            if col not in df.columns:
-                df[col] = ""
-
-        edited_df = st.data_editor(
-            df[KIF_HEADERS],
-            use_container_width=True,
-            hide_index=True,
-            num_rows="dynamic",
-            key="data_editor",
-        )
+    pdf_bytes = st.session_state.pdf_map.get(selected)
+    if pdf_bytes:
+        st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf")
+        pages = convert_from_bytes(pdf_bytes, dpi=200)
+        for page in pages:
+            st.image(page, use_container_width=True)
 
     # ── Export ──
     st.divider()
