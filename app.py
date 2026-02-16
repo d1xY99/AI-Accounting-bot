@@ -110,39 +110,38 @@ if st.session_state.results:
 
     st.divider()
 
-    # ── Tabela (puna širina) ──
-    st.subheader("Podaci")
-    st.caption("Klikni na polje u tabeli da edituješ prije downloada")
+    # ── Tabela (lijevo) + PDF (desno) ──
+    col_table, col_pdf = st.columns([3, 2])
 
-    df = pd.DataFrame(st.session_state.results, columns=KIF_HEADERS)
-    for col in KIF_HEADERS:
-        if col not in df.columns:
-            df[col] = ""
+    with col_table:
+        st.subheader("Podaci")
+        st.caption("Klikni na polje u tabeli da edituješ prije downloada")
 
-    edited_df = st.data_editor(
-        df[KIF_HEADERS],
-        use_container_width=True,
-        hide_index=True,
-        num_rows="dynamic",
-        key="data_editor",
-    )
+        df = pd.DataFrame(st.session_state.results, columns=KIF_HEADERS)
+        for col in KIF_HEADERS:
+            if col not in df.columns:
+                df[col] = ""
 
-    # ── PDF pregled (ispod tabele) ──
-    st.divider()
-    st.subheader("PDF pregled")
+        edited_df = st.data_editor(
+            df[KIF_HEADERS],
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",
+            key="data_editor",
+        )
 
-    selected = st.selectbox(
-        "Odaberi račun za pregled",
-        options=range(len(st.session_state.results)),
-        format_func=lambda i: f"{st.session_state.results[i].get('NAZIVPP','?')} — {st.session_state.results[i].get('BRDOKFAKT','')}",
-    )
+    with col_pdf:
+        st.subheader("PDF pregled")
 
-    pdf_bytes = st.session_state.pdf_map.get(selected)
-    if pdf_bytes:
-        col_left, col_mid, col_right = st.columns([1, 2, 1])
-        with col_left:
-            st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf")
-        with col_mid:
+        selected = st.selectbox(
+            "Odaberi račun za pregled",
+            options=range(len(st.session_state.results)),
+            format_func=lambda i: f"{st.session_state.results[i].get('NAZIVPP','?')} — {st.session_state.results[i].get('BRDOKFAKT','')}",
+        )
+
+        pdf_bytes = st.session_state.pdf_map.get(selected)
+        if pdf_bytes:
+            st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf", use_container_width=True)
             pages = convert_from_bytes(pdf_bytes, dpi=150)
             for page in pages:
                 st.image(page, use_container_width=True)
