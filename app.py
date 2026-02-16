@@ -80,7 +80,7 @@ if st.session_state.page == "home":
     else:
         st.markdown('<div class="logo-row"><div class="app-title">BS BIRO</div></div>', unsafe_allow_html=True)
 
-    st.markdown('<p style="text-align:center; color:#64748b; margin-top:4px;">Automatska obrada PDF računa</p>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align:center; color:#64748b; margin-top:4px;">Automatska obrada faktura</p>', unsafe_allow_html=True)
 
     if not st.session_state.authenticated:
         st.markdown("---")
