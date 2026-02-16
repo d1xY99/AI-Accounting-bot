@@ -29,7 +29,7 @@ if "page" not in st.session_state:
 _layout = "wide" if st.session_state.page == "kif" else "centered"
 _logo_path = os.path.join(os.path.dirname(__file__), "images", "logo.png")
 _icon = Image.open(_logo_path) if os.path.exists(_logo_path) else "📄"
-st.set_page_config(page_title="BS BIRO AI", page_icon=_icon, layout=_layout)
+st.set_page_config(page_title="BS BIRO BOT", page_icon=_icon, layout=_layout)
 
 # ── Helpers ──
 def get_logo_b64():
