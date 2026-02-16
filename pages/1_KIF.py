@@ -9,11 +9,21 @@ from processor import process_pdf, KIF_HEADERS
 # ── Page config ──
 st.set_page_config(page_title="KIF - BS BIRO", page_icon="📄", layout="wide")
 
-# ── Provjera API ključa ──
-if "api_key" not in st.session_state or not st.session_state.api_key:
-    st.warning("API ključ nije unesen. Vrati se na početnu stranicu.")
+# ── Provjera prijave ──
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.warning("Nisi prijavljen. Vrati se na početnu stranicu.")
     st.page_link("app.py", label="Idi na početnu stranicu", icon="🏠")
     st.stop()
+
+# ── API key (tiho iz secrets ili env) ──
+def get_api_key():
+    try:
+        key = st.secrets.get("OPENAI_API_KEY", "")
+        if key:
+            return key
+    except Exception:
+        pass
+    return os.environ.get("OPENAI_API_KEY", "")
 
 # ── CSS ──
 st.markdown("""
@@ -111,7 +121,10 @@ with top_left:
 
 if process_clicked:
 
-    api_key = st.session_state.api_key
+    api_key = get_api_key()
+    if not api_key:
+        st.error("OpenAI API ključ nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
+        st.stop()
 
     st.session_state.results = []
     st.session_state.logs = []

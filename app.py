@@ -1,6 +1,7 @@
 import streamlit as st
-import openai
 import os
+
+APP_PASSWORD = "112"
 
 # ── Page config ──
 st.set_page_config(page_title="BS BIRO", page_icon="📄", layout="centered")
@@ -46,53 +47,28 @@ else:
 
 st.markdown('<p style="text-align:center; color:#64748b; margin-top:4px;">Automatska obrada PDF računa</p>', unsafe_allow_html=True)
 
-# ── Auto-load ključa iz secrets ili env ──
-def try_load_key():
-    try:
-        key = st.secrets.get("OPENAI_API_KEY", "")
-        if key:
-            return key
-    except Exception:
-        pass
-    return os.environ.get("OPENAI_API_KEY", "")
+# ── Provjera šifre ──
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
-if "api_key" not in st.session_state:
-    auto_key = try_load_key()
-    if auto_key:
-        st.session_state.api_key = auto_key
-
-# ── API ključ ──
-has_key = "api_key" in st.session_state and st.session_state.api_key
-
-if not has_key:
+if not st.session_state.authenticated:
     st.markdown("---")
-    st.subheader("Unesi OpenAI API ključ")
-    st.caption("Ključ se čuva samo u trenutnoj sesiji i ne šalje se nikome.")
+    st.subheader("Prijava")
 
-    key_input = st.text_input("API ključ", type="password", placeholder="sk-proj-...")
+    password = st.text_input("Unesi šifru", type="password", placeholder="Šifra...")
 
-    if st.button("Sačuvaj ključ", type="primary", use_container_width=True):
-        if not key_input.strip():
-            st.error("Ključ ne može biti prazan.")
+    if st.button("Prijavi se", type="primary", use_container_width=True):
+        if password == APP_PASSWORD:
+            st.session_state.authenticated = True
+            st.rerun()
         else:
-            with st.spinner("Provjeravam ključ..."):
-                try:
-                    client = openai.OpenAI(api_key=key_input.strip())
-                    client.models.list()
-                    st.session_state.api_key = key_input.strip()
-                    st.success("Ključ je validan!")
-                    st.rerun()
-                except openai.AuthenticationError:
-                    st.error("Neispravan API ključ. Provjeri i pokušaj ponovo.")
-                except Exception as e:
-                    st.error(f"Greška pri provjeri: {str(e)}")
+            st.error("Pogrešna šifra. Pokušaj ponovo.")
 
     st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic</div>', unsafe_allow_html=True)
     st.stop()
 
-# ── Ključ postoji — prikaži navigaciju ──
+# ── Prijavljeno — prikaži navigaciju ──
 st.markdown("---")
-st.markdown('<p style="text-align:center; color:#0e8a3e; font-weight:600; font-size:14px;">API ključ aktivan</p>', unsafe_allow_html=True)
 
 st.subheader("Odaberi modul")
 
@@ -105,24 +81,5 @@ with col1:
 with col2:
     st.page_link("pages/2_KUF.py", label="KUF — Knjiga Ulaznih Faktura", icon="📥", use_container_width=True)
     st.caption("Obrada ulaznih računa koje tvoja firma prima od dobavljača.")
-
-st.markdown("---")
-
-# Opcija za promjenu ključa
-with st.expander("Promijeni API ključ"):
-    new_key = st.text_input("Novi API ključ", type="password", placeholder="sk-proj-...", key="new_key_input")
-    if st.button("Ažuriraj ključ"):
-        if new_key.strip():
-            with st.spinner("Provjeravam..."):
-                try:
-                    client = openai.OpenAI(api_key=new_key.strip())
-                    client.models.list()
-                    st.session_state.api_key = new_key.strip()
-                    st.success("Ključ ažuriran!")
-                    st.rerun()
-                except openai.AuthenticationError:
-                    st.error("Neispravan API ključ.")
-                except Exception as e:
-                    st.error(f"Greška: {str(e)}")
 
 st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic</div>', unsafe_allow_html=True)

@@ -4,9 +4,9 @@ import os
 # ── Page config ──
 st.set_page_config(page_title="KUF - BS BIRO", page_icon="📄", layout="centered")
 
-# ── Provjera API ključa ──
-if "api_key" not in st.session_state or not st.session_state.api_key:
-    st.warning("API ključ nije unesen. Vrati se na početnu stranicu.")
+# ── Provjera prijave ──
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.warning("Nisi prijavljen. Vrati se na početnu stranicu.")
     st.page_link("app.py", label="Idi na početnu stranicu", icon="🏠")
     st.stop()
 
