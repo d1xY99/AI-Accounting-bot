@@ -25,8 +25,13 @@ footer {visibility:hidden;}
 .logo-row .app-title {font-size:2rem; font-weight:700; margin:0;}
 
 /* Opis koraka */
-.steps {background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px 18px; margin:10px 0 16px 0; font-size:13.5px; line-height:1.7; color:#334155;}
-.steps .copyright {margin-top:12px; padding-top:10px; border-top:1px solid #e2e8f0; font-size:11px; color:#94a3b8;}
+.steps {background:#d4d7dc; border:1px solid #bfc3c9; border-radius:10px; padding:14px 18px; margin:10px 0 16px 0; font-size:13.5px; line-height:1.7; color:#334155;}
+.steps .copyright {margin-top:12px; padding-top:10px; border-top:1px solid #bfc3c9; font-size:11px; color:#6b7280;}
+
+/* File uploader, data editor, selectbox pozadina */
+[data-testid="stFileUploader"] {background:#d4d7dc; border-radius:10px; padding:12px;}
+[data-testid="stDataEditor"] {background:#d4d7dc; border-radius:10px; padding:4px;}
+div[data-baseweb="select"] {background:#d4d7dc;}
 
 /* Dugmad boje */
 div.stDownloadButton > button {
