@@ -18,10 +18,11 @@ def get_app_password():
 APP_PASSWORD = get_app_password()
 
 # ── Session state init ──
+_params = st.query_params
 if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+    st.session_state.authenticated = _params.get("auth") == "1"
 if "page" not in st.session_state:
-    st.session_state.page = "home"
+    st.session_state.page = _params.get("page", "home")
 
 # ── Page config (must be first Streamlit command) ──
 _layout = "wide" if st.session_state.page == "kif" else "centered"
@@ -85,6 +86,7 @@ if st.session_state.page == "home":
         if st.button("Prijavi se", type="primary", use_container_width=True):
             if password == APP_PASSWORD:
                 st.session_state.authenticated = True
+                st.query_params["auth"] = "1"
                 st.rerun()
             else:
                 st.error("Pogrešna šifra. Pokušaj ponovo.")
@@ -99,11 +101,13 @@ if st.session_state.page == "home":
     with col1:
         if st.button("📤 KIF — Knjiga Izlaznih Faktura", use_container_width=True):
             st.session_state.page = "kif"
+            st.query_params["page"] = "kif"
             st.rerun()
         st.caption("Obrada izlaznih računa koje tvoja firma izdaje kupcima.")
     with col2:
         if st.button("📥 KUF — Knjiga Ulaznih Faktura", use_container_width=True):
             st.session_state.page = "kuf"
+            st.query_params["page"] = "kuf"
             st.rerun()
         st.caption("Obrada ulaznih računa koje tvoja firma prima od dobavljača.")
 
@@ -142,6 +146,7 @@ elif st.session_state.page == "kif":
     with top_left:
         if st.button("← Nazad", key="back_home"):
             st.session_state.page = "home"
+            st.query_params["page"] = "home"
             st.rerun()
 
         if logo_b64:
@@ -293,6 +298,7 @@ elif st.session_state.page == "kuf":
 
     if st.button("← Nazad"):
         st.session_state.page = "home"
+        st.query_params["page"] = "home"
         st.rerun()
 
     if logo_b64:
