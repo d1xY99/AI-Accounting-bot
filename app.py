@@ -81,6 +81,8 @@ if "pdf_map" not in st.session_state:
     st.session_state.pdf_map = {}
 if "selected" not in st.session_state:
     st.session_state.selected = None
+if "edited_table" not in st.session_state:
+    st.session_state.edited_table = None
 
 # ------------------------------------------------
 # PROCESS
@@ -153,11 +155,15 @@ if st.session_state.results:
             label_visibility="collapsed"
         )
 
-        edited_df=st.data_editor(
-            df[KIF_HEADERS],
-            use_container_width=True,
-            hide_index=True,
-        )
+        edited_df = st.data_editor(
+        df[KIF_HEADERS],
+        use_container_width=True,
+        hide_index=True,
+        key="editor_table"
+    )
+
+    # sačuvaj uvijek zadnju verziju
+    st.session_state.edited_table = edited_df
 
     # ---------------- PDF PREVIEW ----------------
     with right:
@@ -186,8 +192,10 @@ if st.session_state.results:
         wb.save(output)
         return output.getvalue()
 
-    excel=create_excel(edited_df)
-    csv=edited_df.to_csv(index=False,sep=";",encoding="utf-8-sig")
+    export_df = st.session_state.edited_table if st.session_state.edited_table is not None else df[KIF_HEADERS]
+
+    excel = create_excel(export_df)
+    csv = export_df.to_csv(index=False, sep=";", encoding="utf-8-sig")
 
     st.markdown('<div class="export-bar">',unsafe_allow_html=True)
     c1,c2=st.columns(2)
