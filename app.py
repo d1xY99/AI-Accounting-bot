@@ -14,6 +14,10 @@ if "authenticated" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
+# ── Page config (must be first Streamlit command) ──
+_layout = "wide" if st.session_state.page == "kif" else "centered"
+st.set_page_config(page_title="BS BIRO", page_icon="📄", layout=_layout)
+
 # ── Helpers ──
 def get_logo_b64():
     logo_path = os.path.join(os.path.dirname(__file__), "images", "logo.png")
@@ -37,8 +41,6 @@ logo_b64 = get_logo_b64()
 # HOME PAGE
 # ═══════════════════════════════════════════
 if st.session_state.page == "home":
-
-    st.set_page_config(page_title="BS BIRO", page_icon="📄", layout="centered")
 
     st.markdown("""
     <style>
@@ -102,8 +104,6 @@ if st.session_state.page == "home":
 # KIF PAGE
 # ═══════════════════════════════════════════
 elif st.session_state.page == "kif":
-
-    st.set_page_config(page_title="KIF - BS BIRO", page_icon="📄", layout="wide")
 
     st.markdown("""
     <style>
@@ -265,8 +265,6 @@ elif st.session_state.page == "kif":
 # KUF PAGE
 # ═══════════════════════════════════════════
 elif st.session_state.page == "kuf":
-
-    st.set_page_config(page_title="KUF - BS BIRO", page_icon="📄", layout="centered")
 
     st.markdown("""
     <style>
