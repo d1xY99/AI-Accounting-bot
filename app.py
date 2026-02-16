@@ -137,35 +137,39 @@ if st.session_state.results:
         st.markdown("#### Podaci")
 
         df=pd.DataFrame(st.session_state.results,columns=KIF_HEADERS)
+
         for col in KIF_HEADERS:
             if col not in df.columns:
                 df[col]=""
+
+        # dodaj preview kolonu
+        df.insert(0,"Pregled",[f"R{i}" for i in range(len(df))])
+
+        selected_row = st.radio(
+            "Odaberi račun za pregled",
+            options=df.index,
+            format_func=lambda i: f"{df.loc[i,'NAZIVPP']} — {df.loc[i,'IZNAKFT']} KM",
+            horizontal=False,
+            label_visibility="collapsed"
+        )
 
         edited_df=st.data_editor(
             df[KIF_HEADERS],
             use_container_width=True,
             hide_index=True,
-            key="editor"
         )
-
-        # selection
-        selected=st.session_state.get("editor_selected_rows")
-        if selected:
-            st.session_state.selected=selected[0]
 
     # ---------------- PDF PREVIEW ----------------
     with right:
         st.markdown("#### Original račun")
 
-        if st.session_state.selected is not None:
-            pdf_bytes=st.session_state.pdf_map.get(st.session_state.selected)
+        if selected_row is not None:
+            pdf_bytes=st.session_state.pdf_map.get(selected_row)
             if pdf_bytes:
-                st.markdown('<div class="pdfbox">',unsafe_allow_html=True)
                 st.download_button("Preuzmi PDF",pdf_bytes,"racun.pdf",use_container_width=True)
-                st.pdf_viewer(pdf_bytes,height=700)
-                st.markdown('</div>',unsafe_allow_html=True)
+                st.pdf_viewer(pdf_bytes,height=720)
         else:
-            st.info("Klikni red u tabeli za prikaz računa")
+            st.info("Odaberi račun lijevo")
 
     # ------------------------------------------------
     # EXPORT
