@@ -24,7 +24,9 @@ footer {visibility:hidden;}
 .logo-row .app-title {font-size:2rem; font-weight:700; margin:0;}
 
 /* Opis koraka */
-.steps {background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px 18px; margin:10px 0 16px 0; font-size:13.5px; line-height:1.7; color:#334155;}
+.steps {background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:20px 24px; margin:10px 0 16px 0; font-size:13.5px; line-height:1.8; color:#334155; height:100%;}
+.steps h3 {margin:0 0 10px 0; font-size:15px; color:#0f172a;}
+.steps .step-num {display:inline-block; background:#18181b; color:white; border-radius:50%; width:20px; height:20px; text-align:center; line-height:20px; font-size:11px; font-weight:600; margin-right:6px;}
 
 /* Dugmad boje */
 div.stDownloadButton > button {
@@ -56,6 +58,18 @@ with top_left:
     st.caption("Automatska obrada PDF računa")
     st.markdown('<div style="color:#94a3b8; font-size:12px; margin-top:2px;">Sva prava zadržana, Amir Basic</div>', unsafe_allow_html=True)
 
+with top_right:
+    st.markdown("""
+    <div class="steps">
+        <h3>Kako koristiti aplikaciju</h3>
+        <span class="step-num">1</span> <b>Upload računa</b> — Prevuci jedan ili više PDF fajlova u polje lijevo, ili klikni Browse da ih odabereš sa računara. Podržani su svi formati PDF računa.<br>
+        <span class="step-num">2</span> <b>AI obrada</b> — Klikni dugme "Obradi račune". Umjetna inteligencija (GPT-4o) automatski čita svaki PDF, prepoznaje kupca, iznose, datume i ID/PDV brojeve.<br>
+        <span class="step-num">3</span> <b>Provjera podataka</b> — Rezultati se prikazuju u editabilnoj tabeli. Klikni na bilo koje polje da ispraviš ako AI pogriješi. Duplikati računa se automatski detektuju.<br>
+        <span class="step-num">4</span> <b>Preuzimanje</b> — Kada si zadovoljan podacima, preuzmi gotov Excel ili CSV fajl spreman za uvoz u knjigovodstveni softver.
+    </div>
+    """, unsafe_allow_html=True)
+
+with top_left:
     uploaded_files = st.file_uploader(
         "Prevuci ili odaberi PDF račune",
         type=["pdf"],
@@ -198,15 +212,6 @@ if st.session_state.results:
             )
 
     with col_pdf:
-        st.markdown("""
-        <div class="steps">
-            <strong>Kako koristiti:</strong><br>
-            1. Upload-uj jedan ili više PDF računa (drag & drop ili klikni Browse)<br>
-            2. Klikni <b>Obradi račune</b> — AI automatski izvlači podatke iz svakog PDF-a<br>
-            3. Pregledaj i edituj podatke u tabeli ako treba<br>
-            4. Preuzmi gotov Excel ili CSV fajl
-        </div>
-        """, unsafe_allow_html=True)
         st.subheader("PDF pregled")
 
         selected = st.selectbox(
