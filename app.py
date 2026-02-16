@@ -139,10 +139,13 @@ if st.session_state.results:
 
     pdf_bytes = st.session_state.pdf_map.get(selected)
     if pdf_bytes:
-        st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf")
-        pages = convert_from_bytes(pdf_bytes, dpi=200)
-        for page in pages:
-            st.image(page, use_container_width=True)
+        col_left, col_mid, col_right = st.columns([1, 2, 1])
+        with col_left:
+            st.download_button("Preuzmi ovaj PDF", pdf_bytes, "racun.pdf")
+        with col_mid:
+            pages = convert_from_bytes(pdf_bytes, dpi=150)
+            for page in pages:
+                st.image(page, use_container_width=True)
 
     # ── Export ──
     st.divider()
