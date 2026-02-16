@@ -4,6 +4,7 @@ import os
 from io import BytesIO
 from openpyxl import Workbook
 from pdf2image import convert_from_bytes
+from PIL import Image
 from processor import process_pdf, KIF_HEADERS
 
 def get_app_password():
@@ -26,7 +27,9 @@ if "page" not in st.session_state:
 
 # ── Page config (must be first Streamlit command) ──
 _layout = "wide" if st.session_state.page == "kif" else "centered"
-st.set_page_config(page_title="BS BIRO", page_icon="📄", layout=_layout)
+_logo_path = os.path.join(os.path.dirname(__file__), "images", "logo.png")
+_icon = Image.open(_logo_path) if os.path.exists(_logo_path) else "📄"
+st.set_page_config(page_title="BS BIRO", page_icon=_icon, layout=_layout)
 
 # ── Helpers ──
 def get_logo_b64():
