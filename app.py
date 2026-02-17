@@ -6,7 +6,7 @@ from openpyxl import Workbook
 from pdf2image import convert_from_bytes
 from PIL import Image
 from processor import process_pdf, KIF_HEADERS
-
+#
 def get_app_password():
     try:
         pw = st.secrets.get("APP_PASSWORD", "")
