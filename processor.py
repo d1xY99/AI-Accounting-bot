@@ -62,10 +62,10 @@ Za SVAKI račun koji pronađeš, izvuci ova polja:
 {
   "DATUMDOK": "Datum dokumenta - nalazi se u vrhu računa, obično ispod 'PRESJEK STANJA' (format DD.MM.GGGG)",
   "BROJKIFA": "",
-  "SADRZAJ": "Vrijednost označena sa 'DI:' na računu (npr. '1532 / 2000', '1524 / 2000')",
-  "GOTOVINA": "Iznos pored 'GOTOVINA:' ili 'GOTOVINAR:' u dnu računa (decimalni separator zarez)",
-  "KARTICNO": "Iznos pored 'KARTICA:' ili 'KARTICR:' u dnu računa (decimalni separator zarez)",
-  "DEPOZIT": "Iznos pored 'DEPOZIT:' ako postoji, inače prazan string"
+  "SADRZAJ": "Piši 'DI: ' i samo PRVI broj koji stoji pored DI. Npr. ako na računu piše 'DI: 1532 / 2000', upiši 'DI: 1532'. Ako piše 'DI: 1524 / 2000', upiši 'DI: 1524'. NIKAD ne upisuj '/ 2000' dio!",
+  "GOTOVINA": "Iznos pored 'GOTOVINA:' ili 'GOTOVINAR:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Pažljivo pročitaj svaku cifru! Npr. 75,28 ili 150,89 ili 0,00. Decimalni separator ZAREZ.",
+  "KARTICNO": "Iznos pored 'KARTICA:' ili 'KARTICR:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Pažljivo pročitaj svaku cifru! Npr. 400,46 ili 270,98 ili 0,00. Decimalni separator ZAREZ.",
+  "DEPOZIT": "Iznos pored 'DEPOZIT:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Ako ne postoji, prazan string"
 }
 
 VAŽNO:
@@ -78,6 +78,7 @@ VAŽNO:
 - Vrati SAMO čist JSON niz, bez markdown, bez objašnjenja
 - Pažljivo razdvoji račune - svaki presjek stanja je zaseban račun
 - NE miješaj podatke između računa
+- GOTOVINA i KARTICA: Čitaj TAČAN iznos cifru po cifru! NE miješaj cifre između računa. Ako tekst iz PDF-a postoji, koristi tekst umjesto slike za precizne brojeve
 """
 
 
