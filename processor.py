@@ -42,7 +42,7 @@ VAŽNO:
 - KUPAC je firma na koju glasi račun (piše "Korisnik:", "Kupac:", "Za:" ili slično)
 - DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun) - to NIJE kupac!
 - Koristi zarez kao decimalni separator (npr. 102,70)
-- Datum u formatu DD.MM.GGGG
+- DATUM: Pažljivo pročitaj GODINU! Trenutna godina je 2025 ili 2026. NE čitaj 2026 kao 2020! Format DD.MM.GGGG
 - ID broj (JIB) = 13 cifara, počinje sa 4
 - PDV broj = 12 cifara, isti kao JIB bez vodeće 4 (samo firme u PDV sistemu)
 - IZNPDV je iznos u KM, NE procenat
@@ -73,7 +73,7 @@ VAŽNO:
 - Ako ima 3 računa na slici, vrati niz od 3 objekta
 - BROJKIFA je UVIJEK prazan string ""
 - Koristi zarez kao decimalni separator (npr. 75,28)
-- Datum u formatu DD.MM.GGGG (bez vremena)
+- DATUM: Pažljivo pročitaj GODINU! Trenutna godina je 2025 ili 2026. NE čitaj 2026 kao 2020! Ako vidiš "2026" to JE 2026, NE 2020. Format: DD.MM.GGGG (bez vremena)
 - Ako je vrijednost 0.00 ili 0,00, upiši "0,00"
 - Vrati SAMO čist JSON niz, bez markdown, bez objašnjenja
 - Pažljivo razdvoji račune - svaki presjek stanja je zaseban račun
