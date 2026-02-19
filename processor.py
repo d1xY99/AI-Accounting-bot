@@ -177,11 +177,13 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     data["REDBR"] = random.randint(1, 10)
     data["TIPDOK"] = "01"
 
-    # Konvertuj brojeve u string sa zarezom
+    # Konvertuj brojeve u string sa zarezom kao separatorom
     for key in ["IZNAKFT", "IZNOSNOV", "IZNPDV"]:
         val = data.get(key, "")
         if isinstance(val, (int, float)):
             data[key] = f"{val:.2f}".replace(".", ",")
+        elif isinstance(val, str) and val:
+            data[key] = val.replace(".", ",")
 
     return data
 
