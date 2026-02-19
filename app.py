@@ -5,7 +5,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from pdf2image import convert_from_bytes
 from PIL import Image
-from processor import process_pdf, KIF_HEADERS
+from processor import process_pdf, split_pdf_to_pages, KIF_HEADERS
 #
 def get_app_password():
     try:
@@ -207,26 +207,35 @@ elif st.session_state.page == "kif":
         st.session_state.pdf_map = {}
         seen = set()
 
+        # Razdvoji sve PDF-ove na stranice za tačan progress
+        all_items = []  # (file_name, page_num, page_bytes, total_pages_in_file)
+        for file in uploaded_files:
+            pdf_bytes = file.read()
+            pages = split_pdf_to_pages(pdf_bytes)
+            for page_num, page_bytes in pages:
+                all_items.append((file.name, page_num, page_bytes, len(pages)))
+        total = len(all_items)
+
         with top_left:
             with st.spinner("AI obrađuje račune, molimo sačekajte..."):
                 progress = st.progress(0, text="Pokrećem obradu...")
-                for i, file in enumerate(uploaded_files):
-                    progress.progress(i / len(uploaded_files), text=f"Obrađujem {i+1}/{len(uploaded_files)}: {file.name}")
+                for i, (file_name, page_num, page_bytes, file_pages) in enumerate(all_items):
+                    label = f"{file_name} (str. {page_num})" if file_pages > 1 else file_name
+                    progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
                     try:
-                        pdf_bytes = file.read()
-                        data = process_pdf(pdf_bytes, filename=file.name, api_key=api_key)
+                        data = process_pdf(page_bytes, filename=label, api_key=api_key)
                         broj = data.get("BRDOKFAKT", "")
                         if broj and broj in seen:
-                            st.session_state.logs.append(("warn", f"{file.name} — duplikat računa {broj}"))
+                            st.session_state.logs.append(("warn", f"{label} — duplikat računa {broj}"))
                             continue
                         seen.add(broj)
                         idx = len(st.session_state.results)
                         st.session_state.results.append(data)
-                        st.session_state.pdf_map[idx] = pdf_bytes
-                        st.session_state.logs.append(("ok", f"{file.name} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
+                        st.session_state.pdf_map[idx] = page_bytes
+                        st.session_state.logs.append(("ok", f"{label} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
                     except Exception as e:
-                        st.session_state.logs.append(("err", f"{file.name} — {str(e)}"))
-                    progress.progress((i + 1) / len(uploaded_files))
+                        st.session_state.logs.append(("err", f"{label} — {str(e)}"))
+                    progress.progress((i + 1) / total)
                 progress.progress(1.0, text=f"Gotovo! Obrađeno {len(st.session_state.results)} račun(a)")
 
     # Results

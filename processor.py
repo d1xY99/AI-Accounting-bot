@@ -38,7 +38,7 @@ Ključevi MORAJU biti TAČNO ovi (ostavi prazan string "" ako ne postoji):
 
 VAŽNO:
 - Vrati SAMO čist JSON objekat (NE niz), bez markdown, bez objašnjenja
-- Jedan PDF = jedan račun = jedan JSON objekat
+- Ovo je jedan račun - vrati jedan JSON objekat
 - KUPAC je firma na koju glasi račun (piše "Korisnik:", "Kupac:", "Za:" ili slično)
 - DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun) - to NIJE kupac!
 - Koristi zarez kao decimalni separator (npr. 102,70)
@@ -48,6 +48,19 @@ VAŽNO:
 - IZNPDV je iznos u KM, NE procenat
 - Brojeve prepiši TAČNO
 """
+
+
+def split_pdf_to_pages(pdf_bytes):
+    """Razdvaja multi-page PDF na listu single-page PDF bajtova."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    pages = []
+    for page_num in range(len(doc)):
+        single = fitz.open()
+        single.insert_pdf(doc, from_page=page_num, to_page=page_num)
+        pages.append((page_num + 1, single.tobytes()))
+        single.close()
+    doc.close()
+    return pages
 
 
 def extract_text_from_bytes(pdf_bytes):
@@ -171,3 +184,15 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
             data[key] = f"{val:.2f}".replace(".", ",")
 
     return data
+
+
+def process_multi_page_pdf(pdf_bytes, filename="", api_key=None):
+    """Razdvaja PDF po stranicama i obrađuje svaku kao zaseban račun."""
+    pages = split_pdf_to_pages(pdf_bytes)
+    results = []
+    for page_num, page_bytes in pages:
+        data = process_pdf(page_bytes, filename=f"{filename} (str. {page_num})", api_key=api_key)
+        data["_page_num"] = page_num
+        data["_page_bytes"] = page_bytes
+        results.append(data)
+    return results
