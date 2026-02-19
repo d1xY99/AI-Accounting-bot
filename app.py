@@ -207,6 +207,7 @@ elif st.session_state.page == "kif":
         st.session_state.results = []
         st.session_state.logs = []
         st.session_state.pdf_map = {}
+        st.session_state.labels = {}
         seen = set()
 
         # Razdvoji sve PDF-ove na stranice za tačan progress
@@ -234,6 +235,7 @@ elif st.session_state.page == "kif":
                         idx = len(st.session_state.results)
                         st.session_state.results.append(data)
                         st.session_state.pdf_map[idx] = page_bytes
+                        st.session_state.labels[idx] = label
                         st.session_state.logs.append(("ok", f"{label} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
                     except Exception as e:
                         st.session_state.logs.append(("err", f"{label} — {str(e)}"))
@@ -294,10 +296,23 @@ elif st.session_state.page == "kif":
 
         with top_right:
             st.subheader("PDF pregled")
+
+            def preview_label(i):
+                r = st.session_state.results[i]
+                naziv = r.get("NAZIVPP", "?")
+                broj = r.get("BRDOKFAKT", "")
+                src = st.session_state.labels.get(i, "")
+                parts = [naziv]
+                if broj:
+                    parts.append(f"#{broj}")
+                if src:
+                    parts.append(f"[{src}]")
+                return " — ".join(parts)
+
             selected = st.selectbox(
                 "Odaberi račun za pregled",
                 options=range(len(st.session_state.results)),
-                format_func=lambda i: f"{st.session_state.results[i].get('NAZIVPP','?')} — {st.session_state.results[i].get('BRDOKFAKT','')}",
+                format_func=preview_label,
             )
             pdf_bytes = st.session_state.pdf_map.get(selected)
             if pdf_bytes:
