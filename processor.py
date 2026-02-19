@@ -50,6 +50,37 @@ VAŽNO:
 """
 
 
+DNEVNI_HEADERS = [
+    "DATUMDOK", "BROJKIFA", "SADRZAJ", "GOTOVINA", "KARTICNO", "DEPOZIT",
+]
+
+FISCAL_EXTRACTION_PROMPT = """Na ovoj slici se nalaze fiskalni računi (presjek stanja iz fiskalnog printera).
+Može biti od 1 do 5 računa zalijepljenih na jednom papiru.
+
+Za SVAKI račun koji pronađeš, izvuci ova polja:
+
+{
+  "DATUMDOK": "Datum dokumenta - nalazi se u vrhu računa, obično ispod 'PRESJEK STANJA' (format DD.MM.GGGG)",
+  "BROJKIFA": "",
+  "SADRZAJ": "Vrijednost označena sa 'DI:' na računu (npr. '1532 / 2000', '1524 / 2000')",
+  "GOTOVINA": "Iznos pored 'GOTOVINA:' ili 'GOTOVINAR:' u dnu računa (decimalni separator zarez)",
+  "KARTICNO": "Iznos pored 'KARTICA:' ili 'KARTICR:' u dnu računa (decimalni separator zarez)",
+  "DEPOZIT": "Iznos pored 'DEPOZIT:' ako postoji, inače prazan string"
+}
+
+VAŽNO:
+- Vrati JSON NIZ (array) sa jednim objektom za svaki pronađeni račun
+- Ako ima 3 računa na slici, vrati niz od 3 objekta
+- BROJKIFA je UVIJEK prazan string ""
+- Koristi zarez kao decimalni separator (npr. 75,28)
+- Datum u formatu DD.MM.GGGG (bez vremena)
+- Ako je vrijednost 0.00 ili 0,00, upiši "0,00"
+- Vrati SAMO čist JSON niz, bez markdown, bez objašnjenja
+- Pažljivo razdvoji račune - svaki presjek stanja je zaseban račun
+- NE miješaj podatke između računa
+"""
+
+
 def split_pdf_to_pages(pdf_bytes):
     """Razdvaja multi-page PDF na listu single-page PDF bajtova."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -197,4 +228,66 @@ def process_multi_page_pdf(pdf_bytes, filename="", api_key=None):
         data["_page_num"] = page_num
         data["_page_bytes"] = page_bytes
         results.append(data)
+    return results
+
+
+def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
+    """Obrađuje stranicu sa fiskalnim računima i vraća listu dict-ova."""
+    client = openai.OpenAI(api_key=api_key)
+
+    pdf_text = extract_text_from_bytes(pdf_bytes)
+    images = pdf_bytes_to_images_base64(pdf_bytes)
+
+    content = []
+    for img in images:
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{img}"},
+        })
+
+    has_text = len(pdf_text) >= MIN_TEXT_LENGTH
+    if has_text:
+        content.append({
+            "type": "text",
+            "text": f"Za TAČNE brojeve koristi ovaj tekst iz PDF-a:\n\n"
+                    f"---\n{pdf_text}\n---\n\n{FISCAL_EXTRACTION_PROMPT}",
+        })
+    else:
+        content.append({"type": "text", "text": FISCAL_EXTRACTION_PROMPT})
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        temperature=0,
+        max_tokens=4000,
+        messages=[{"role": "user", "content": content}],
+    )
+
+    raw = response.choices[0].message.content.strip()
+
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1]
+        raw = raw.rsplit("```", 1)[0]
+
+    # Parsiranje — očekujemo JSON niz
+    start = raw.find("[")
+    end = raw.rfind("]") + 1
+    if start >= 0 and end > start:
+        raw = raw[start:end]
+
+    items = json.loads(raw)
+    if isinstance(items, dict):
+        items = [items]
+
+    results = []
+    for data in items:
+        data["BROJKIFA"] = ""
+        # Konvertuj brojeve u string sa zarezom
+        for key in ["GOTOVINA", "KARTICNO", "DEPOZIT"]:
+            val = data.get(key, "")
+            if isinstance(val, (int, float)):
+                data[key] = f"{val:.2f}".replace(".", ",")
+            elif isinstance(val, str) and val:
+                data[key] = val.replace(".", ",")
+        results.append(data)
+
     return results
