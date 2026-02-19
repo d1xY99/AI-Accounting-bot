@@ -286,9 +286,9 @@ elif st.session_state.page == "kif":
             st.divider()
             e1, e2, e3 = st.columns(3)
             with e1:
-                st.download_button("Preuzmi XLS", create_xls(edited_df), "racuni.xls", type="primary", use_container_width=True)
+                st.download_button("Preuzmi DBF", create_dbf(edited_df), "racuni.dbf", type="primary", use_container_width=True)
             with e2:
-                st.download_button("Preuzmi DBF", create_dbf(edited_df), "racuni.dbf", use_container_width=True)
+                st.download_button("Preuzmi XLS", create_xls(edited_df), "racuni.xls", use_container_width=True)
             with e3:
                 st.download_button("Preuzmi CSV", edited_df.to_csv(index=False, sep=";", encoding="utf-8-sig"), "racuni.csv", use_container_width=True)
 
