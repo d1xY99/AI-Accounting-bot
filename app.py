@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 import os
 from io import BytesIO
-from openpyxl import Workbook
+import xlwt
+import dbf
+import tempfile
 from pdf2image import convert_from_bytes
 from PIL import Image
 from processor import process_pdf, split_pdf_to_pages, KIF_HEADERS
@@ -252,24 +254,42 @@ elif st.session_state.page == "kif":
 
             edited_df = st.data_editor(df[KIF_HEADERS], use_container_width=True, hide_index=True, num_rows="dynamic", key="data_editor")
 
-            def create_excel(dataframe):
-                output = BytesIO()
-                wb = Workbook()
-                ws = wb.active
-                ws.title = "Racuni"
-                for c, h in enumerate(KIF_HEADERS, 1):
-                    ws.cell(row=1, column=c, value=h)
+            def create_xls(dataframe):
+                wb = xlwt.Workbook(encoding="utf-8")
+                ws = wb.add_sheet("Racuni")
+                for c, h in enumerate(KIF_HEADERS):
+                    ws.write(0, c, h)
                 for r, row in dataframe.iterrows():
-                    for c, h in enumerate(KIF_HEADERS, 1):
-                        ws.cell(row=r + 2, column=c, value=row.get(h, ""))
+                    for c, h in enumerate(KIF_HEADERS):
+                        ws.write(r + 1, c, str(row.get(h, "")))
+                output = BytesIO()
                 wb.save(output)
                 return output.getvalue()
 
+            def create_dbf(dataframe):
+                # Definisi polja — max 10 char imena, C(100) tip
+                field_specs = "; ".join(f"{h[:10]} C(100)" for h in KIF_HEADERS)
+                tmp_dir = tempfile.mkdtemp()
+                tmp_path = os.path.join(tmp_dir, "racuni.dbf")
+                table = dbf.Table(tmp_path, field_specs, dbf_type="db3")
+                table.open(dbf.READ_WRITE)
+                for _, row in dataframe.iterrows():
+                    values = [str(row.get(h, ""))[:100] for h in KIF_HEADERS]
+                    table.append(tuple(values))
+                table.close()
+                with open(tmp_path, "rb") as f:
+                    data = f.read()
+                os.unlink(tmp_path)
+                os.rmdir(tmp_dir)
+                return data
+
             st.divider()
-            e1, e2 = st.columns(2)
+            e1, e2, e3 = st.columns(3)
             with e1:
-                st.download_button("Preuzmi Excel", create_excel(edited_df), "racuni.xlsx", type="primary", use_container_width=True)
+                st.download_button("Preuzmi XLS", create_xls(edited_df), "racuni.xls", type="primary", use_container_width=True)
             with e2:
+                st.download_button("Preuzmi DBF", create_dbf(edited_df), "racuni.dbf", use_container_width=True)
+            with e3:
                 st.download_button("Preuzmi CSV", edited_df.to_csv(index=False, sep=";", encoding="utf-8-sig"), "racuni.csv", use_container_width=True)
 
         with top_right:

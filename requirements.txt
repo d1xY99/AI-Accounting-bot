@@ -2,6 +2,7 @@ streamlit
 openai
 pymupdf
 pdf2image
-openpyxl
+xlwt
+dbf
 pandas
 Pillow

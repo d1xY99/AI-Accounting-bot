@@ -3,6 +3,7 @@
 __pycache__/
 *.pyc
 .streamlit/secrets.toml
-racuni.xlsx
+racuni.xls
+racuni.dbf
 *.pdf
 /venv
