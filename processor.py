@@ -2,7 +2,9 @@ import openai
 import base64
 import json
 import random
+import re
 import fitz
+from openpyxl import load_workbook
 from pdf2image import convert_from_path
 from io import BytesIO
 import tempfile
@@ -19,6 +21,123 @@ KIF_HEADERS = [
 POZNATI_PARTNERI = [
     #todo
 ]
+
+# --- Mapa kupaca iz kupci.xlsx ---
+
+_CP1250_FIX = {
+    '\u00C6': 'Ć', '\u00E6': 'ć',
+    '\u00C8': 'Č', '\u00E8': 'č',
+    '\u00D0': 'Đ', '\u00F0': 'đ',
+}
+
+
+def _fix_cp1250(s):
+    for bad, good in _CP1250_FIX.items():
+        s = s.replace(bad, good)
+    return s
+
+
+def load_kupci_names(xlsx_path="kupci.xlsx"):
+    """Učitava listu pravilnih naziva kupaca iz xlsx fajla."""
+    try:
+        wb = load_workbook(xlsx_path, read_only=True)
+        ws = wb.active
+        names = []
+        for row in ws.iter_rows(min_row=1, max_col=1, values_only=True):
+            if row[0]:
+                names.append(_fix_cp1250(str(row[0]).strip()))
+        wb.close()
+        return names
+    except Exception:
+        return []
+
+
+_DIACRITICS = str.maketrans('ČĆŽŠĐ', 'CCZSĐ', '')
+_DIACRITICS_FULL = str.maketrans('ČĆŽŠĐčćžšđ', 'CCZSDcczsđ', '')
+
+
+def _normalize_name(name):
+    """Normalizuje naziv firme za poređenje."""
+    s = name.upper().strip()
+    # D.O.O. / D.O.O / D O O → DOO
+    s = re.sub(r'D\s*\.\s*O\s*\.\s*O\s*\.?', 'DOO', s)
+    s = re.sub(r'\bD\s+O\s+O\b', 'DOO', s)
+    # Ukloni tačke, crtice, navodnike
+    s = s.replace('.', ' ').replace('-', ' ').replace('"', '').replace("'", '')
+    # Višestruki razmaci → jedan
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
+
+
+def _strip_diacritics(name):
+    """Uklanja dijakritike (Č→C, Ć→C, Š→S, Ž→Z, Đ→D)."""
+    return name.translate(_DIACRITICS_FULL).upper()
+
+
+def match_kupac_name(extracted_name, known_names):
+    """Pronalazi najbolje poklapanje iz liste poznatih kupaca.
+    Vraća pravilno ime ako nađe match, inače vraća original."""
+    if not extracted_name or not known_names:
+        return extracted_name
+
+    norm_extracted = _normalize_name(extracted_name)
+    if not norm_extracted:
+        return extracted_name
+
+    best_match = None
+    best_score = 0
+
+    for known in known_names:
+        norm_known = _normalize_name(known)
+
+        # Tačan match nakon normalizacije
+        if norm_extracted == norm_known:
+            return known
+
+        # Tačan match bez dijakritika (CEVABDZINICA == ĆEVABDŽINICA)
+        if _strip_diacritics(norm_extracted) == _strip_diacritics(norm_known):
+            return known
+
+        # Jedan sadrži drugi (npr. "ZE TRANS" ⊂ "ZE TRANS DOO")
+        if norm_extracted in norm_known or norm_known in norm_extracted:
+            overlap = min(len(norm_extracted), len(norm_known))
+            max_len = max(len(norm_extracted), len(norm_known))
+            score = overlap / max_len if max_len > 0 else 0
+            if score > best_score and score >= 0.5:
+                best_score = score
+                best_match = known
+                continue
+
+        # Substring match bez dijakritika
+        ascii_ext = _strip_diacritics(norm_extracted)
+        ascii_known = _strip_diacritics(norm_known)
+        if ascii_ext in ascii_known or ascii_known in ascii_ext:
+            overlap = min(len(ascii_ext), len(ascii_known))
+            max_len = max(len(ascii_ext), len(ascii_known))
+            score = overlap / max_len if max_len > 0 else 0
+            if score > best_score and score >= 0.5:
+                best_score = score
+                best_match = known
+                continue
+
+        # Poređenje ključnih riječi (bez DOO, STR, SZR, TR, UR, DD, JP, JU)
+        suffixes = {'DOO', 'STR', 'SZR', 'TR', 'UR', 'DD', 'JP', 'JU'}
+        words_ext = [w for w in _strip_diacritics(norm_extracted).split() if w not in suffixes]
+        words_known = [w for w in _strip_diacritics(norm_known).split() if w not in suffixes]
+        if words_ext and words_known:
+            common = set(words_ext) & set(words_known)
+            total = set(words_ext) | set(words_known)
+            score = len(common) / len(total) if total else 0
+            if score > best_score and score >= 0.6:
+                best_score = score
+                best_match = known
+
+    return best_match if best_match else extracted_name
+
+
+# Učitaj listu kupaca pri importu
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+KUPCI_NAMES = load_kupci_names(os.path.join(_SCRIPT_DIR, "kupci.xlsx"))
 
 EXTRACTION_PROMPT = """Ovo je račun/faktura. Izvuci polja i vrati kao JSON objekat.
 
@@ -201,6 +320,10 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
             if not data.get("SJEDISTEPP"):
                 data["SJEDISTEPP"] = partner["adresa"]
             break
+
+    # Korekcija naziva iz mape kupaca
+    if data.get("NAZIVPP") and KUPCI_NAMES:
+        data["NAZIVPP"] = match_kupac_name(data["NAZIVPP"], KUPCI_NAMES)
 
     # Validacija ID/PDV
     data = validate_id_pdv(data)

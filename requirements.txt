@@ -6,3 +6,4 @@ xlwt
 dbf
 pandas
 Pillow
+openpyxl
