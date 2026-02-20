@@ -22,7 +22,6 @@ POZNATI_PARTNERI = [
     #todo
 ]
 
-# --- Mapa kupaca iz kupci.xlsx ---
 
 _CP1250_FIX = {
     '\u00C6': 'Ć', '\u00E6': 'ć',
@@ -47,10 +46,8 @@ def load_kupci_names(xlsx_path="kupci.xlsx"):
             if row[0]:
                 names.append(_fix_cp1250(str(row[0]).strip()))
         wb.close()
-        print(f"[KUPCI] Učitano {len(names)} kupaca iz {xlsx_path}")
         return names
-    except Exception as e:
-        print(f"[KUPCI] GREŠKA pri učitavanju {xlsx_path}: {e}")
+    except Exception:
         return []
 
 
@@ -325,14 +322,7 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
 
     # Korekcija naziva iz mape kupaca
     if data.get("NAZIVPP") and KUPCI_NAMES:
-        original = data["NAZIVPP"]
         data["NAZIVPP"] = match_kupac_name(data["NAZIVPP"], KUPCI_NAMES)
-        if data["NAZIVPP"] != original:
-            print(f"[KUPCI] Korigovano: '{original}' → '{data['NAZIVPP']}'")
-        else:
-            print(f"[KUPCI] Bez promjene: '{original}' (nema match)")
-    elif not KUPCI_NAMES:
-        print(f"[KUPCI] UPOZORENJE: Lista kupaca je prazna! Matching preskočen.")
 
     # Validacija ID/PDV
     data = validate_id_pdv(data)
