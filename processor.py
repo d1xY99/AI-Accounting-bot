@@ -149,9 +149,9 @@ Ključevi MORAJU biti TAČNO ovi (ostavi prazan string "" ako ne postoji):
   "SJEDISTEPP": "Puna adresa kupca sa poštanskim brojem i mjestom",
   "IDDVPP": "ID broj (JIB) kupca - MORA biti TAČNO 13 cifara i počinjati sa 4. Ako na računu vidiš broj koji nema 13 cifara ili ne počinje sa 4, dodaj vodeću 4 da bude 13 cifara",
   "JIBPUPP": "PDV broj kupca - MORA biti TAČNO 12 cifara. To je isti broj kao ID/JIB ali BEZ vodeće cifre 4. Ako kupac NIJE u PDV sistemu (nema PDV broj na računu), ostavi prazan string",
-  "IZNOSNOV": "Iznos BEZ PDV-a (decimalni separator zarez, npr. 155,87)",
-  "IZNPDV": "Iznos PDV-a u KM (NE procenat, nego koliko PDV iznosi u novcu, npr. 26,50)",
-  "IZNAKFT": "UKUPAN iznos za uplatu SA PDV-om (npr. 182,37)"
+  "IZNOSNOV": "Iznos BEZ PDV-a (decimalni separator tačka, npr. 155.87)",
+  "IZNPDV": "Iznos PDV-a u KM (NE procenat, nego koliko PDV iznosi u novcu, npr. 26.50)",
+  "IZNAKFT": "UKUPAN iznos za uplatu SA PDV-om (npr. 182.37)"
 }
 
 VAŽNO:
@@ -159,7 +159,7 @@ VAŽNO:
 - Ovo je jedan račun - vrati jedan JSON objekat
 - KUPAC je firma na koju glasi račun (piše "Korisnik:", "Kupac:", "Za:" ili slično)
 - DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun) - to NIJE kupac!
-- Koristi zarez kao decimalni separator (npr. 102,70)
+- Koristi tačku kao decimalni separator (npr. 102.70)
 - DATUM: Pažljivo pročitaj GODINU! Trenutna godina je 2025 ili 2026. NE čitaj 2026 kao 2020! Format DD.MM.GGGG
 - ID broj (JIB) = 13 cifara, počinje sa 4
 - PDV broj = 12 cifara, isti kao JIB bez vodeće 4 (samo firme u PDV sistemu)
@@ -331,13 +331,13 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     data["REDBR"] = random.randint(1, 10)
     data["TIPDOK"] = "01"
 
-    # Konvertuj brojeve u string sa zarezom kao separatorom
+    # Konvertuj brojeve u string sa tačkom kao separatorom
     for key in ["IZNAKFT", "IZNOSNOV", "IZNPDV"]:
         val = data.get(key, "")
         if isinstance(val, (int, float)):
-            data[key] = f"{val:.2f}".replace(".", ",")
+            data[key] = f"{val:.2f}"
         elif isinstance(val, str) and val:
-            data[key] = val.replace(".", ",")
+            data[key] = val.replace(",", ".")
 
     return data
 
