@@ -87,14 +87,16 @@ if st.session_state.page == "home":
     if not st.session_state.authenticated:
         st.markdown("---")
         st.subheader("Prijava")
-        password = st.text_input("Unesi šifru", type="password", placeholder="Šifra...")
-        if st.button("Prijavi se", type="primary", use_container_width=True):
-            if password == APP_PASSWORD:
-                st.session_state.authenticated = True
-                st.query_params["auth"] = "1"
-                st.rerun()
-            else:
-                st.error("Pogrešna šifra. Pokušaj ponovo.")
+        with st.form("login_form"):
+            password = st.text_input("Unesi šifru", type="password", placeholder="Šifra...")
+            submitted = st.form_submit_button("Prijavi se", type="primary", use_container_width=True)
+            if submitted:
+                if password == APP_PASSWORD:
+                    st.session_state.authenticated = True
+                    st.query_params["auth"] = "1"
+                    st.rerun()
+                else:
+                    st.error("Pogrešna šifra. Pokušaj ponovo.")
         st.markdown('<div class="copyright">Sva prava zadržana, Amir Basic - basic.amir99@gmail.com</div>', unsafe_allow_html=True)
         st.stop()
 
