@@ -15,7 +15,7 @@ MIN_TEXT_LENGTH = 100
 KIF_HEADERS = [
     "REDBR", "TIPDOK", "BRDOKFAKT", "DATUMF",
     "NAZIVPP", "SJEDISTEPP", "IDDVPP", "JIBPUPP",
-    "IZNAKFT", "IZNOSNOV", "IZNPDV",
+    "IZNAKFT", "IZNOSNOV", "IZNPDV", "REF", "OSL",
 ]
 
 POZNATI_PARTNERI = [
@@ -151,7 +151,9 @@ Ključevi MORAJU biti TAČNO ovi (ostavi prazan string "" ako ne postoji):
   "JIBPUPP": "PDV broj kupca - MORA biti TAČNO 12 cifara. To je isti broj kao ID/JIB ali BEZ vodeće cifre 4. Ako kupac NIJE u PDV sistemu (nema PDV broj na računu), ostavi prazan string",
   "IZNOSNOV": "Iznos BEZ PDV-a (decimalni separator tačka, npr. 155.87)",
   "IZNPDV": "Iznos PDV-a u KM (NE procenat, nego koliko PDV iznosi u novcu, npr. 26.50)",
-  "IZNAKFT": "UKUPAN iznos za uplatu SA PDV-om (npr. 182.37)"
+  "IZNAKFT": "UKUPAN iznos za uplatu SA PDV-om (npr. 182.37)",
+  "REF": "Ručno napisan tekst koji počinje sa 'REF:' — upiši SAMO iznos koji slijedi iza 'REF:'. Npr. ako piše 'REF: 250.00' upiši '250.00'. Ako nema REF oznake, ostavi prazan string",
+  "OSL": "Provjeri da li na računu postoji tekst o oslobađanju PDV-a. Traži tekst koji sadrži 'oslobođene PDV-a po čl.' ili 'oslobodjene PDV-a po cl.' ili slično. Ako se pominje član 15 ili član 27, upiši '1'. Ako se pominje član 26, upiši '2'. Ako nema takvog teksta, upiši '0'"
 }
 
 VAŽNO:
@@ -165,6 +167,8 @@ VAŽNO:
 - PDV broj = 12 cifara, isti kao JIB bez vodeće 4 (samo firme u PDV sistemu)
 - IZNPDV je iznos u KM, NE procenat
 - Brojeve prepiši TAČNO
+- REF: Traži ručno napisan tekst "REF:" na papiru — upiši samo iznos iza njega
+- OSL: Traži tekst "oslobođene/oslobodjene PDV-a po čl. 15/26/27" — čl. 15 ili 27 = "1", čl. 26 = "2", nema = "0"
 """
 
 
@@ -338,6 +342,54 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
             data[key] = f"{val:.2f}"
         elif isinstance(val, str) and val:
             data[key] = val.replace(",", ".")
+
+    # ── Hardening REF ──
+    ref_val = str(data.get("REF", "")).strip()
+    # Očisti ako je AI vratio "REF:" prefiks
+    ref_val = re.sub(r'^[Rr][Ee][Ff]\s*[:;.\-]\s*', '', ref_val)
+    # Izvuci samo broj (cifre, tačka, zarez)
+    ref_match = re.search(r'[\d][,.\d]*[\d]|[\d]', ref_val)
+    if ref_match:
+        ref_val = ref_match.group().replace(",", ".")
+    else:
+        ref_val = ""
+    # Fallback: provjeri direktno u PDF tekstu ako AI nije pronašao
+    if not ref_val and pdf_text:
+        ref_text_match = re.search(r'[Rr][Ee][Ff]\s*[:;.\-]\s*([\d][,.\d]*[\d]|[\d])', pdf_text)
+        if ref_text_match:
+            ref_val = ref_text_match.group(1).replace(",", ".")
+    data["REF"] = ref_val
+
+    # ── Hardening OSL ──
+    osl_val = str(data.get("OSL", "0")).strip()
+    # Normaliziraj AI odgovor na 0/1/2
+    if osl_val not in ("0", "1", "2"):
+        if re.search(r'\b(15|27)\b', osl_val):
+            osl_val = "1"
+        elif re.search(r'\b26\b', osl_val):
+            osl_val = "2"
+        else:
+            osl_val = "0"
+    # Fallback: provjeri direktno u PDF tekstu nezavisno od AI-a
+    if pdf_text:
+        osl_pattern = re.search(
+            r'oslobo[dđ]en[aei]*\s+PDV[\s-]*a\s+po\s+[čc]l[.\s]*(\d+)',
+            pdf_text,
+            re.IGNORECASE,
+        )
+        if osl_pattern:
+            clan = osl_pattern.group(1)
+            if clan in ("15", "27"):
+                osl_val = "1"
+            elif clan == "26":
+                osl_val = "2"
+        # Ako nema tog teksta u PDF-u a AI je rekao 0, ostavi 0
+        # Ako nema tog teksta a AI je rekao 1 ili 2, provjeri da tekst uopšte postoji
+        elif osl_val != "0":
+            # AI tvrdi da postoji ali PDF tekst nema — trust AI za skenirane dokumente
+            # jer tekst iz slike ne mora biti u pdf_text
+            pass
+    data["OSL"] = osl_val
 
     return data
 
