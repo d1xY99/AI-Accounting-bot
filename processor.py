@@ -204,6 +204,127 @@ VAŽNO:
 """
 
 
+KUF_HEADERS = [
+    "REDBR", "TIPDOK", "BROJFAKT", "DATUMF", "DATUMPF",
+    "NAZIVPP", "SJEDISTEPP", "IDPDVPP", "JIBPUPP",
+    "IZNBEZPDV", "IZNSAPDV", "IZNPDV", "Moze",
+]
+
+KUF_EXTRACTION_PROMPT = """Ovo je ulazni račun/faktura (primljeni od dobavljača). Izvuci polja i vrati kao JSON objekat.
+
+Ključevi MORAJU biti TAČNO ovi (ostavi prazan string "" ako ne postoji):
+
+{
+  "BROJFAKT": "Broj računa/fakture (npr. 432/10, 9034508513, 600398-1-0126-1)",
+  "DATUMF": "Datum izdavanja fakture (format DD.MM.GGGG)",
+  "DATUMPF": "Datum prijema fakture — ako postoji poseban datum prijema/evidentiranja, upiši ga (format DD.MM.GGGG). Ako ne postoji, ostavi prazan string",
+  "NAZIVPP": "Puni naziv DOBAVLJAČA — firma KOJA JE IZDALA račun (čiji je logo/zaglavlje). To je firma koja ŠALJE račun, NE firma koja ga prima!",
+  "SJEDISTEPP": "Puna adresa dobavljača sa poštanskim brojem i mjestom",
+  "IDPDVPP": "ID broj (JIB) dobavljača - MORA biti TAČNO 13 cifara i počinjati sa 4. Ako na računu vidiš broj koji nema 13 cifara ili ne počinje sa 4, dodaj vodeću 4 da bude 13 cifara",
+  "JIBPUPP": "PDV broj dobavljača - MORA biti TAČNO 12 cifara. To je isti broj kao ID/JIB ali BEZ vodeće cifre 4. Ako dobavljač NIJE u PDV sistemu (nema PDV broj na računu), ostavi prazan string",
+  "IZNBEZPDV": "Iznos BEZ PDV-a (decimalni separator tačka, npr. 155.87)",
+  "IZNSAPDV": "UKUPAN iznos za uplatu SA PDV-om (npr. 182.37)",
+  "IZNPDV": "Iznos PDV-a u KM (NE procenat, nego koliko PDV iznosi u novcu, npr. 26.50)",
+  "Moze": "Provjeri da li se na računu pominje pravo na odbitak ulaznog PDV-a. Ako postoji PDV i nema naznake da se PDV NE može odbiti, upiši '1'. Ako piše da se PDV ne može odbiti ili ako nema PDV-a, upiši '0'"
+}
+
+VAŽNO:
+- Vrati SAMO čist JSON objekat (NE niz), bez markdown, bez objašnjenja
+- Ovo je jedan račun - vrati jedan JSON objekat
+- Ovo je ULAZNA faktura — DOBAVLJAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun)
+- KUPAC/PRIMALAC je firma KOJA PRIMA račun — to NIJE dobavljač!
+- Koristi tačku kao decimalni separator (npr. 102.70)
+- DATUM: Pažljivo pročitaj GODINU! Trenutna godina je 2025 ili 2026. NE čitaj 2026 kao 2020! Format DD.MM.GGGG
+- ID broj (JIB) = 13 cifara, počinje sa 4
+- PDV broj = 12 cifara, isti kao JIB bez vodeće 4 (samo firme u PDV sistemu)
+- IZNPDV je iznos u KM, NE procenat
+- Brojeve prepiši TAČNO
+"""
+
+
+def process_kuf_pdf(pdf_bytes, filename="", api_key=None):
+    """Obrađuje PDF ulazne fakture i vraća dict sa KUF podacima."""
+    client = openai.OpenAI(api_key=api_key)
+
+    pdf_text = extract_text_from_bytes(pdf_bytes)
+
+    content = []
+    has_text = len(pdf_text) >= MIN_TEXT_LENGTH
+    images = pdf_bytes_to_images_base64(pdf_bytes)
+
+    for img in images:
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{img}"},
+        })
+
+    if has_text:
+        content.append({
+            "type": "text",
+            "text": f"Pogledaj SLIKU da razumiješ raspored - ko je dobavljač a ko kupac.\n"
+                    f"DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun) — TO JE FIRMA ČIJE PODATKE TREBAŠ.\n"
+                    f"KUPAC/PRIMALAC je firma na koju glasi račun — to NE trebamo.\n\n"
+                    f"Za TAČNE brojeve koristi ovaj tekst iz PDF-a:\n\n"
+                    f"---\n{pdf_text}\n---\n\n{KUF_EXTRACTION_PROMPT}",
+        })
+    else:
+        content.append({"type": "text", "text": KUF_EXTRACTION_PROMPT})
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        temperature=0,
+        max_tokens=2000,
+        messages=[{"role": "user", "content": content}],
+    )
+
+    raw = response.choices[0].message.content.strip()
+
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1]
+        raw = raw.rsplit("```", 1)[0]
+
+    start = raw.find("{")
+    end = raw.rfind("}") + 1
+    if start >= 0 and end > start:
+        raw = raw[start:end]
+
+    data = json.loads(raw)
+
+    # Validacija ID/PDV (ista logika, ali polje se zove IDPDVPP)
+    id_broj = str(data.get("IDPDVPP", "")).strip().replace(" ", "")
+    if id_broj:
+        if len(id_broj) == 12 and not id_broj.startswith("4"):
+            id_broj = "4" + id_broj
+        if len(id_broj) == 13 and id_broj.startswith("4"):
+            data["IDPDVPP"] = id_broj
+            pdv = str(data.get("JIBPUPP", "")).strip()
+            if not pdv or len(pdv) != 12:
+                data["JIBPUPP"] = id_broj[1:]
+
+    # Fiksna polja
+    data["REDBR"] = random.randint(1, 10)
+    data["TIPDOK"] = "01"
+
+    # Konvertuj brojeve u string sa tačkom kao separatorom
+    for key in ["IZNBEZPDV", "IZNSAPDV", "IZNPDV"]:
+        val = data.get(key, "")
+        if isinstance(val, (int, float)):
+            data[key] = f"{val:.2f}"
+        elif isinstance(val, str) and val:
+            data[key] = val.replace(",", ".")
+
+    # Hardening Moze — mora biti "0" ili "1"
+    moze_val = str(data.get("Moze", "0")).strip()
+    if moze_val not in ("0", "1"):
+        if moze_val.lower() in ("da", "yes", "true"):
+            moze_val = "1"
+        else:
+            moze_val = "0"
+    data["Moze"] = moze_val
+
+    return data
+
+
 def split_pdf_to_pages(pdf_bytes):
     """Razdvaja multi-page PDF na listu single-page PDF bajtova."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
