@@ -152,7 +152,7 @@ Ključevi MORAJU biti TAČNO ovi (ostavi prazan string "" ako ne postoji):
   "IZNOSNOV": "Iznos BEZ PDV-a (decimalni separator tačka, npr. 155.87)",
   "IZNPDV": "Iznos PDV-a u KM (NE procenat, nego koliko PDV iznosi u novcu, npr. 26.50)",
   "IZNAKFT": "UKUPAN iznos za uplatu SA PDV-om (npr. 182.37)",
-  "REF": "Ručno napisan tekst koji počinje sa 'REF:' — upiši SAMO iznos koji slijedi iza 'REF:'. Npr. ako piše 'REF: 250.00' upiši '250.00'. Ako nema REF oznake, ostavi prazan string",
+  "REF": "PAŽLJIVO PREGLEDAJ CIJELU SLIKU za RUČNO NAPISAN (rukom pisan, hemijskom olovkom) tekst 'REF:' ili 'Ref:' ili 'ref:'. Može biti na BILO KOJEM dijelu papira — na margini, pri vrhu, pri dnu, na poleđini, preko teksta fakture. Iza 'REF:' slijedi iznos (broj). Upiši SAMO taj broj. Npr. ako rukom piše 'REF: 250.00' upiši '250.00'. Ako rukom piše 'REF: 1500' upiši '1500'. Rukopis može biti neuredan! Ako NEMA ručno napisanog 'REF:' teksta, ostavi prazan string ''",
   "OSL": "Provjeri da li na računu postoji tekst o oslobađanju PDV-a. Traži tekst koji sadrži 'oslobođene PDV-a po čl.' ili 'oslobodjene PDV-a po cl.' ili slično. Ako se pominje član 15 ili član 27, upiši '1'. Ako se pominje član 26, upiši '2'. Ako nema takvog teksta, upiši '0'"
 }
 
@@ -167,7 +167,7 @@ VAŽNO:
 - PDV broj = 12 cifara, isti kao JIB bez vodeće 4 (samo firme u PDV sistemu)
 - IZNPDV je iznos u KM, NE procenat
 - Brojeve prepiši TAČNO
-- REF: Traži ručno napisan tekst "REF:" na papiru — upiši samo iznos iza njega
+- REF: OBAVEZNO pregledaj CIJELU sliku za RUČNO NAPISAN tekst "REF:" (hemijskom olovkom, rukom). Može biti BILO GDJE na papiru — margine, vrh, dno, dijagonalno, preko teksta. Rukopis može biti neuredan. Upiši SAMO broj iza "REF:". Ako nema ručno napisanog REF, ostavi prazan string
 - OSL: Traži tekst "oslobođene/oslobodjene PDV-a po čl. 15/26/27" — čl. 15 ili 27 = "1", čl. 26 = "2", nema = "0"
 """
 
@@ -278,6 +278,15 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
             "image_url": {"url": f"data:image/png;base64,{img}"},
         })
 
+    ref_instruction = (
+        "\n\nPOSEBNO VAŽNO — REF polje:\n"
+        "Na papiru može biti RUČNO NAPISANO (hemijskom olovkom, rukom) 'REF:' i broj iza toga.\n"
+        "Pregledaj CIJELU sliku — margine, uglove, vrh, dno, prostor između redova.\n"
+        "Rukopis je RAZLIČIT od štampanog teksta fakture. Traži bilo kakav rukom pisan tekst.\n"
+        "Ako pronađeš 'REF:' ili nešto što liči na 'REF' napisano rukom, upiši broj koji slijedi.\n"
+        "Ako NEMA ručno napisanog teksta, REF ostavi kao prazan string.\n"
+    )
+
     if has_text:
         content.append({
             "type": "text",
@@ -285,10 +294,10 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
                     f"DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun).\n"
                     f"KUPAC je firma na koju glasi račun (piše 'Korisnik:', 'Kupac:' ili slično).\n\n"
                     f"Za TAČNE brojeve koristi ovaj tekst iz PDF-a:\n\n"
-                    f"---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT}",
+                    f"---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT}{ref_instruction}",
         })
     else:
-        content.append({"type": "text", "text": EXTRACTION_PROMPT})
+        content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}"})
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -345,19 +354,28 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
 
     # ── Hardening REF ──
     ref_val = str(data.get("REF", "")).strip()
-    # Očisti ako je AI vratio "REF:" prefiks
-    ref_val = re.sub(r'^[Rr][Ee][Ff]\s*[:;.\-]\s*', '', ref_val)
-    # Izvuci samo broj (cifre, tačka, zarez)
-    ref_match = re.search(r'[\d][,.\d]*[\d]|[\d]', ref_val)
-    if ref_match:
-        ref_val = ref_match.group().replace(",", ".")
-    else:
+    # Očisti ako je AI vratio "REF:" prefiks ili varijacije (ref, Ref, REF, sa/bez dvotačke)
+    ref_val = re.sub(r'^[Rr][Ee][Ff]\s*[:;.\-]?\s*', '', ref_val)
+    # Ukloni tekst poput "nema", "nije pronađeno", "prazan" itd.
+    if re.match(r'^(nema|nije|prazan|empty|none|n/a|null|ne postoji)', ref_val, re.IGNORECASE):
         ref_val = ""
+    # Izvuci broj — dozvoli razmake između cifara (rukopis), tačke, zareze
+    if ref_val:
+        # Ukloni razmake unutar broja (rukopis: "1 500" → "1500")
+        cleaned = re.sub(r'(\d)\s+(\d)', r'\1\2', ref_val)
+        ref_match = re.search(r'[\d][,.\d]*[\d]|[\d]', cleaned)
+        if ref_match:
+            ref_val = ref_match.group().replace(",", ".")
+        else:
+            ref_val = ""
     # Fallback: provjeri direktno u PDF tekstu ako AI nije pronašao
     if not ref_val and pdf_text:
-        ref_text_match = re.search(r'[Rr][Ee][Ff]\s*[:;.\-]\s*([\d][,.\d]*[\d]|[\d])', pdf_text)
+        ref_text_match = re.search(
+            r'[Rr][Ee][Ff]\s*[:;.\-]?\s*([\d][\s,.\d]*[\d]|[\d])',
+            pdf_text,
+        )
         if ref_text_match:
-            ref_val = ref_text_match.group(1).replace(",", ".")
+            ref_val = re.sub(r'\s', '', ref_text_match.group(1)).replace(",", ".")
     data["REF"] = ref_val
 
     # ── Hardening OSL ──
