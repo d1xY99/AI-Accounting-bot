@@ -7,7 +7,7 @@ import dbf
 import tempfile
 from pdf2image import convert_from_bytes
 from PIL import Image
-from processor import process_pdf, split_pdf_to_pages, process_fiscal_pdf, process_kuf_pdf, KIF_HEADERS, KUF_HEADERS, DNEVNI_HEADERS
+from processor import process_pdf, split_pdf_to_pages, count_pdf_pages, iter_pdf_pages, process_fiscal_pdf, process_kuf_pdf, KIF_HEADERS, KUF_HEADERS, DNEVNI_HEADERS
 #
 def get_app_password():
     try:
@@ -217,36 +217,40 @@ elif st.session_state.page == "kif":
         st.session_state.labels = {}
         seen = set()
 
-        # Razdvoji sve PDF-ove na stranice za tačan progress
-        all_items = []  # (file_name, page_num, page_bytes, total_pages_in_file)
+        # Prebrojaj ukupno stranica bez čuvanja svih bajtova u memoriji
+        total = 0
         for file in uploaded_files:
             pdf_bytes = file.read()
-            pages = split_pdf_to_pages(pdf_bytes)
-            for page_num, page_bytes in pages:
-                all_items.append((file.name, page_num, page_bytes, len(pages)))
-        total = len(all_items)
+            total += count_pdf_pages(pdf_bytes)
+            file.seek(0)
 
         with top_left:
             with st.spinner("AI obrađuje račune, molimo sačekajte..."):
                 progress = st.progress(0, text="Pokrećem obradu...")
-                for i, (file_name, page_num, page_bytes, file_pages) in enumerate(all_items):
-                    label = f"{file_name} (str. {page_num})" if file_pages > 1 else file_name
-                    progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
-                    try:
-                        data = process_pdf(page_bytes, filename=label, api_key=api_key)
-                        broj = data.get("BRDOKFAKT", "")
-                        if broj and broj in seen:
-                            st.session_state.logs.append(("warn", f"{label} — duplikat računa {broj}"))
-                            continue
-                        seen.add(broj)
-                        idx = len(st.session_state.results)
-                        st.session_state.results.append(data)
-                        st.session_state.pdf_map[idx] = page_bytes
-                        st.session_state.labels[idx] = label
-                        st.session_state.logs.append(("ok", f"{label} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
-                    except Exception as e:
-                        st.session_state.logs.append(("err", f"{label} — {str(e)}"))
-                    progress.progress((i + 1) / total)
+                i = 0
+                for file in uploaded_files:
+                    pdf_bytes = file.read()
+                    file_pages = count_pdf_pages(pdf_bytes)
+                    for page_num, page_bytes in iter_pdf_pages(pdf_bytes):
+                        label = f"{file.name} (str. {page_num})" if file_pages > 1 else file.name
+                        progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
+                        try:
+                            data = process_pdf(page_bytes, filename=label, api_key=api_key)
+                            broj = data.get("BRDOKFAKT", "")
+                            if broj and broj in seen:
+                                st.session_state.logs.append(("warn", f"{label} — duplikat računa {broj}"))
+                            else:
+                                seen.add(broj)
+                                idx = len(st.session_state.results)
+                                st.session_state.results.append(data)
+                                st.session_state.pdf_map[idx] = page_bytes
+                                st.session_state.labels[idx] = label
+                                st.session_state.logs.append(("ok", f"{label} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
+                        except Exception as e:
+                            st.session_state.logs.append(("err", f"{label} — {str(e)}"))
+                        i += 1
+                        progress.progress(i / total)
+                    del pdf_bytes
                 progress.progress(1.0, text=f"Gotovo! Obrađeno {len(st.session_state.results)} račun(a)")
 
     # Results
@@ -418,31 +422,35 @@ elif st.session_state.page == "dnevni":
         st.session_state.d_logs = []
         st.session_state.d_pdf_map = {}
 
-        # Razdvoji na stranice
-        all_items = []
+        # Prebrojaj ukupno stranica bez čuvanja svih bajtova u memoriji
+        total = 0
         for file in uploaded_files_d:
             pdf_bytes = file.read()
-            pages = split_pdf_to_pages(pdf_bytes)
-            for page_num, page_bytes in pages:
-                all_items.append((file.name, page_num, page_bytes, len(pages)))
-        total = len(all_items)
+            total += count_pdf_pages(pdf_bytes)
+            file.seek(0)
 
         with top_left:
             with st.spinner("AI obrađuje fiskalne račune, molimo sačekajte..."):
                 progress = st.progress(0, text="Pokrećem obradu...")
-                for i, (file_name, page_num, page_bytes, file_pages) in enumerate(all_items):
-                    label = f"{file_name} (str. {page_num})" if file_pages > 1 else file_name
-                    progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
-                    try:
-                        fiscal_items = process_fiscal_pdf(page_bytes, filename=label, api_key=api_key)
-                        for item in fiscal_items:
-                            idx = len(st.session_state.d_results)
-                            st.session_state.d_results.append(item)
-                            st.session_state.d_pdf_map[idx] = page_bytes
-                            st.session_state.d_logs.append(("ok", f"{label} — DI: {item.get('SADRZAJ','?')} — Datum: {item.get('DATUMDOK','?')}"))
-                    except Exception as e:
-                        st.session_state.d_logs.append(("err", f"{label} — {str(e)}"))
-                    progress.progress((i + 1) / total)
+                i = 0
+                for file in uploaded_files_d:
+                    pdf_bytes = file.read()
+                    file_pages = count_pdf_pages(pdf_bytes)
+                    for page_num, page_bytes in iter_pdf_pages(pdf_bytes):
+                        label = f"{file.name} (str. {page_num})" if file_pages > 1 else file.name
+                        progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
+                        try:
+                            fiscal_items = process_fiscal_pdf(page_bytes, filename=label, api_key=api_key)
+                            for item in fiscal_items:
+                                idx = len(st.session_state.d_results)
+                                st.session_state.d_results.append(item)
+                                st.session_state.d_pdf_map[idx] = page_bytes
+                                st.session_state.d_logs.append(("ok", f"{label} — DI: {item.get('SADRZAJ','?')} — Datum: {item.get('DATUMDOK','?')}"))
+                        except Exception as e:
+                            st.session_state.d_logs.append(("err", f"{label} — {str(e)}"))
+                        i += 1
+                        progress.progress(i / total)
+                    del pdf_bytes
                 progress.progress(1.0, text=f"Gotovo! Pronađeno {len(st.session_state.d_results)} fiskalnih računa")
 
     if st.session_state.d_results:
@@ -612,35 +620,40 @@ elif st.session_state.page == "kuf":
         st.session_state.k_labels = {}
         seen = set()
 
-        all_items = []
+        # Prebrojaj ukupno stranica bez čuvanja svih bajtova u memoriji
+        total = 0
         for file in uploaded_files_k:
             pdf_bytes = file.read()
-            pages = split_pdf_to_pages(pdf_bytes)
-            for page_num, page_bytes in pages:
-                all_items.append((file.name, page_num, page_bytes, len(pages)))
-        total = len(all_items)
+            total += count_pdf_pages(pdf_bytes)
+            file.seek(0)
 
         with top_left:
             with st.spinner("AI obrađuje ulazne račune, molimo sačekajte..."):
                 progress = st.progress(0, text="Pokrećem obradu...")
-                for i, (file_name, page_num, page_bytes, file_pages) in enumerate(all_items):
-                    label = f"{file_name} (str. {page_num})" if file_pages > 1 else file_name
-                    progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
-                    try:
-                        data = process_kuf_pdf(page_bytes, filename=label, api_key=api_key)
-                        broj = data.get("BROJFAKT", "")
-                        if broj and broj in seen:
-                            st.session_state.k_logs.append(("warn", f"{label} — duplikat računa {broj}"))
-                            continue
-                        seen.add(broj)
-                        idx = len(st.session_state.k_results)
-                        st.session_state.k_results.append(data)
-                        st.session_state.k_pdf_map[idx] = page_bytes
-                        st.session_state.k_labels[idx] = label
-                        st.session_state.k_logs.append(("ok", f"{label} — {data.get('NAZIVPP','?')} — {data.get('IZNSAPDV','?')} KM"))
-                    except Exception as e:
-                        st.session_state.k_logs.append(("err", f"{label} — {str(e)}"))
-                    progress.progress((i + 1) / total)
+                i = 0
+                for file in uploaded_files_k:
+                    pdf_bytes = file.read()
+                    file_pages = count_pdf_pages(pdf_bytes)
+                    for page_num, page_bytes in iter_pdf_pages(pdf_bytes):
+                        label = f"{file.name} (str. {page_num})" if file_pages > 1 else file.name
+                        progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
+                        try:
+                            data = process_kuf_pdf(page_bytes, filename=label, api_key=api_key)
+                            broj = data.get("BROJFAKT", "")
+                            if broj and broj in seen:
+                                st.session_state.k_logs.append(("warn", f"{label} — duplikat računa {broj}"))
+                            else:
+                                seen.add(broj)
+                                idx = len(st.session_state.k_results)
+                                st.session_state.k_results.append(data)
+                                st.session_state.k_pdf_map[idx] = page_bytes
+                                st.session_state.k_labels[idx] = label
+                                st.session_state.k_logs.append(("ok", f"{label} — {data.get('NAZIVPP','?')} — {data.get('IZNSAPDV','?')} KM"))
+                        except Exception as e:
+                            st.session_state.k_logs.append(("err", f"{label} — {str(e)}"))
+                        i += 1
+                        progress.progress(i / total)
+                    del pdf_bytes
                 progress.progress(1.0, text=f"Gotovo! Obrađeno {len(st.session_state.k_results)} račun(a)")
 
     # Results

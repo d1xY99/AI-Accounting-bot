@@ -338,6 +338,28 @@ def split_pdf_to_pages(pdf_bytes):
     return pages
 
 
+def count_pdf_pages(pdf_bytes):
+    """Vraća broj stranica u PDF-u bez čuvanja stranica u memoriji."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    n = len(doc)
+    doc.close()
+    return n
+
+
+def iter_pdf_pages(pdf_bytes):
+    """Generator koji vraća stranice jednu po jednu — ne drži sve u memoriji odjednom."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        for page_num in range(len(doc)):
+            single = fitz.open()
+            single.insert_pdf(doc, from_page=page_num, to_page=page_num)
+            page_bytes = single.tobytes()
+            single.close()
+            yield (page_num + 1, page_bytes)
+    finally:
+        doc.close()
+
+
 def extract_text_from_bytes(pdf_bytes):
     """Izvlači ugrađeni tekst iz PDF bajtova."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -355,7 +377,7 @@ def pdf_bytes_to_images_base64(pdf_bytes):
         tmp_path = tmp.name
 
     try:
-        pages = convert_from_path(tmp_path, dpi=200)
+        pages = convert_from_path(tmp_path, dpi=150)
         images = []
         for page in pages:
             buffer = BytesIO()

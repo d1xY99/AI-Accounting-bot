@@ -6,4 +6,4 @@ textColor = "#09090b"
 font = "sans serif"
 
 [server]
-maxUploadSize = 50
+maxUploadSize = 200
