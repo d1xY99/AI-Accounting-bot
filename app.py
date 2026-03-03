@@ -53,8 +53,8 @@ def get_api_key():
 logo_b64 = get_logo_b64()
 
 
-def _write_dbf(dataframe, headers, encoding="cp1250"):
-    """Ručno kreira dBASE III DBF sa ispravnim enkodiranjem č, ć, š, ž, đ."""
+def _write_dbf(dataframe, headers, encoding="cp852"):
+    """Kreira dBASE III DBF sa ručnim enkodiranjem za ispravan prikaz č, ć, š, ž, đ."""
     FIELD_LEN = 100
     lang_map = {"cp852": 0x64, "cp1250": 0xC8, "cp437": 0x01, "cp850": 0x02}
     lang_byte = lang_map.get(encoding, 0x00)
