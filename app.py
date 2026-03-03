@@ -284,7 +284,7 @@ elif st.session_state.page == "kif":
                 field_specs = "; ".join(f"{h[:10]} C(100)" for h in KIF_HEADERS)
                 tmp_dir = tempfile.mkdtemp()
                 tmp_path = os.path.join(tmp_dir, "racuni.dbf")
-                table = dbf.Table(tmp_path, field_specs, dbf_type="db3", codepage="cp1250")
+                table = dbf.Table(tmp_path, field_specs, dbf_type="db3", codepage="cp852")
                 table.open(dbf.READ_WRITE)
                 for _, row in dataframe.iterrows():
                     values = [str(row.get(h, ""))[:100] for h in KIF_HEADERS]
@@ -482,7 +482,7 @@ elif st.session_state.page == "dnevni":
                 field_specs = "; ".join(f"{h[:10]} C(100)" for h in DNEVNI_HEADERS)
                 tmp_dir = tempfile.mkdtemp()
                 tmp_path = os.path.join(tmp_dir, "dnevni.dbf")
-                table = dbf.Table(tmp_path, field_specs, dbf_type="db3", codepage="cp1250")
+                table = dbf.Table(tmp_path, field_specs, dbf_type="db3", codepage="cp852")
                 table.open(dbf.READ_WRITE)
                 for _, row in dataframe.iterrows():
                     values = [str(row.get(h, ""))[:100] for h in DNEVNI_HEADERS]
@@ -686,7 +686,7 @@ elif st.session_state.page == "kuf":
                 field_specs = "; ".join(f"{h[:10]} C(100)" for h in KUF_HEADERS)
                 tmp_dir = tempfile.mkdtemp()
                 tmp_path = os.path.join(tmp_dir, "kuf.dbf")
-                table = dbf.Table(tmp_path, field_specs, dbf_type="db3", codepage="cp1250")
+                table = dbf.Table(tmp_path, field_specs, dbf_type="db3", codepage="cp852")
                 table.open(dbf.READ_WRITE)
                 for _, row in dataframe.iterrows():
                     values = [str(row.get(h, ""))[:100] for h in KUF_HEADERS]
