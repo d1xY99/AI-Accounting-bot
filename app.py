@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import os
+import struct
 from io import BytesIO
 import xlwt
-import dbf
 import tempfile
 from pdf2image import convert_from_bytes
 from PIL import Image
@@ -51,6 +51,50 @@ def get_api_key():
     return os.environ.get("OPENAI_API_KEY", "")
 
 logo_b64 = get_logo_b64()
+
+
+def _write_dbf(dataframe, headers, encoding="cp1250"):
+    """Ručno kreira dBASE III DBF sa ispravnim enkodiranjem č, ć, š, ž, đ."""
+    FIELD_LEN = 100
+    lang_map = {"cp852": 0x64, "cp1250": 0xC8, "cp437": 0x01, "cp850": 0x02}
+    lang_byte = lang_map.get(encoding, 0x00)
+    n_fields = len(headers)
+    n_records = len(dataframe)
+    header_size = 32 + (n_fields * 32) + 1
+    record_size = 1 + (n_fields * FIELD_LEN)
+
+    buf = BytesIO()
+    # ── Header (32 bytes) ──
+    buf.write(struct.pack('<B', 0x03))              # Version: dBASE III
+    buf.write(struct.pack('<3B', 26, 1, 1))         # Datum: YY MM DD
+    buf.write(struct.pack('<I', n_records))          # Broj zapisa
+    buf.write(struct.pack('<H', header_size))        # Veličina headera
+    buf.write(struct.pack('<H', record_size))        # Veličina zapisa
+    buf.write(b'\x00' * 17)                         # Reserved
+    buf.write(struct.pack('<B', lang_byte))          # Language driver
+    buf.write(b'\x00' * 2)                          # Reserved
+
+    # ── Field descriptors (32 bytes each) ──
+    for h in headers:
+        name = h[:10].encode('ascii', errors='replace').ljust(11, b'\x00')
+        buf.write(name)                             # Ime polja (11 bytes)
+        buf.write(b'C')                             # Tip: Character
+        buf.write(b'\x00' * 4)                      # Reserved
+        buf.write(struct.pack('<B', FIELD_LEN))     # Dužina polja
+        buf.write(b'\x00')                          # Decimal count
+        buf.write(b'\x00' * 14)                     # Reserved
+    buf.write(b'\r')                                # Header terminator
+
+    # ── Records ──
+    for _, row in dataframe.iterrows():
+        buf.write(b' ')                             # Delete flag
+        for h in headers:
+            val = str(row.get(h, ""))
+            encoded = val.encode(encoding, errors='replace')[:FIELD_LEN]
+            buf.write(encoded.ljust(FIELD_LEN, b' '))
+    buf.write(b'\x1a')                              # EOF marker
+    return buf.getvalue()
+
 
 # ═══════════════════════════════════════════
 # HOME PAGE
@@ -280,21 +324,7 @@ elif st.session_state.page == "kif":
                 return output.getvalue()
 
             def create_dbf(dataframe):
-                # Definisi polja — max 10 char imena, C(100) tip
-                field_specs = "; ".join(f"{h[:10]} C(100)" for h in KIF_HEADERS)
-                tmp_dir = tempfile.mkdtemp()
-                tmp_path = os.path.join(tmp_dir, "racuni.dbf")
-                table = dbf.Table(tmp_path, field_specs, dbf_type="db3", codepage="cp852")
-                table.open(dbf.READ_WRITE)
-                for _, row in dataframe.iterrows():
-                    values = [str(row.get(h, ""))[:100] for h in KIF_HEADERS]
-                    table.append(tuple(values))
-                table.close()
-                with open(tmp_path, "rb") as f:
-                    data = f.read()
-                os.unlink(tmp_path)
-                os.rmdir(tmp_dir)
-                return data
+                return _write_dbf(dataframe, KIF_HEADERS)
 
             st.divider()
             e1, e2, e3 = st.columns(3)
@@ -479,20 +509,7 @@ elif st.session_state.page == "dnevni":
                 return output.getvalue()
 
             def create_dbf_d(dataframe):
-                field_specs = "; ".join(f"{h[:10]} C(100)" for h in DNEVNI_HEADERS)
-                tmp_dir = tempfile.mkdtemp()
-                tmp_path = os.path.join(tmp_dir, "dnevni.dbf")
-                table = dbf.Table(tmp_path, field_specs, dbf_type="db3", codepage="cp852")
-                table.open(dbf.READ_WRITE)
-                for _, row in dataframe.iterrows():
-                    values = [str(row.get(h, ""))[:100] for h in DNEVNI_HEADERS]
-                    table.append(tuple(values))
-                table.close()
-                with open(tmp_path, "rb") as f:
-                    data = f.read()
-                os.unlink(tmp_path)
-                os.rmdir(tmp_dir)
-                return data
+                return _write_dbf(dataframe, DNEVNI_HEADERS)
 
             st.divider()
             e1, e2, e3 = st.columns(3)
@@ -683,20 +700,7 @@ elif st.session_state.page == "kuf":
                 return output.getvalue()
 
             def create_dbf_k(dataframe):
-                field_specs = "; ".join(f"{h[:10]} C(100)" for h in KUF_HEADERS)
-                tmp_dir = tempfile.mkdtemp()
-                tmp_path = os.path.join(tmp_dir, "kuf.dbf")
-                table = dbf.Table(tmp_path, field_specs, dbf_type="db3", codepage="cp852")
-                table.open(dbf.READ_WRITE)
-                for _, row in dataframe.iterrows():
-                    values = [str(row.get(h, ""))[:100] for h in KUF_HEADERS]
-                    table.append(tuple(values))
-                table.close()
-                with open(tmp_path, "rb") as f:
-                    data = f.read()
-                os.unlink(tmp_path)
-                os.rmdir(tmp_dir)
-                return data
+                return _write_dbf(dataframe, KUF_HEADERS)
 
             st.divider()
             e1, e2, e3 = st.columns(3)
