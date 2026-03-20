@@ -618,26 +618,51 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     return data
 
 
-def process_multi_page_pdf(pdf_bytes, filename="", api_key=None, max_workers=4):
-    """Razdvaja PDF po stranicama i obrađuje paralelno."""
+def _merge_pdf_pages(page_bytes_list):
+    """Spaja listu single-page PDF bajtova u jedan PDF."""
+    merged = fitz.open()
+    for pb in page_bytes_list:
+        doc = fitz.open(stream=pb, filetype="pdf")
+        merged.insert_pdf(doc)
+        doc.close()
+    result = merged.tobytes()
+    merged.close()
+    return result
+
+
+def _is_incomplete(data):
+    """Provjerava da li rezultatu fale ključni iznosi (druga stranica računa)."""
+    iznakft = str(data.get("IZNAKFT", "")).strip()
+    iznosnov = str(data.get("IZNOSNOV", "")).strip()
+    # Ako nema ukupnog iznosa i nema osnove — vjerovatno nepotpun
+    return (not iznakft or iznakft == "0" or iznakft == "0.00") and \
+           (not iznosnov or iznosnov == "0" or iznosnov == "0.00")
+
+
+def process_multi_page_pdf(pdf_bytes, filename="", api_key=None):
+    """Razdvaja PDF po stranicama. Ako stranica nema iznose, spaja sa sljedećom."""
     pages = split_pdf_to_pages(pdf_bytes)
-
-    def _process_one(page_num, page_bytes):
+    results = []
+    i = 0
+    while i < len(pages):
+        page_num, page_bytes = pages[i]
         data = process_pdf(page_bytes, filename=f"{filename} (str. {page_num})", api_key=api_key)
-        data["_page_num"] = page_num
-        data["_page_bytes"] = page_bytes
-        return page_num, data
 
-    results = [None] * len(pages)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(_process_one, page_num, page_bytes): i
-            for i, (page_num, page_bytes) in enumerate(pages)
-        }
-        for future in as_completed(futures):
-            idx = futures[future]
-            _, data = future.result()
-            results[idx] = data
+        # Ako fale iznosi i postoji sljedeća stranica — spoji i probaj ponovo
+        if _is_incomplete(data) and i + 1 < len(pages):
+            next_page_num, next_page_bytes = pages[i + 1]
+            merged_bytes = _merge_pdf_pages([page_bytes, next_page_bytes])
+            print(f"  [MERGE] Stranica {page_num} nepotpuna, spajam sa {next_page_num}")
+            data = process_pdf(merged_bytes, filename=f"{filename} (str. {page_num}-{next_page_num})", api_key=api_key)
+            data["_page_num"] = page_num
+            data["_page_bytes"] = merged_bytes
+            results.append(data)
+            i += 2  # Preskoči obje stranice
+        else:
+            data["_page_num"] = page_num
+            data["_page_bytes"] = page_bytes
+            results.append(data)
+            i += 1
 
     return results
 
