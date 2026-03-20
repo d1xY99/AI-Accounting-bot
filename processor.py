@@ -9,6 +9,7 @@ from pdf2image import convert_from_path
 from io import BytesIO
 import tempfile
 import os
+import time
 
 MIN_TEXT_LENGTH = 100
 
@@ -243,6 +244,18 @@ VAŽNO:
 """
 
 
+def _chat_completion_with_retry(client, max_retries=5, **kwargs):
+    """Poziva chat.completions.create sa retry logikom za 429 rate limit."""
+    for attempt in range(max_retries):
+        try:
+            return client.chat.completions.create(**kwargs)
+        except openai.RateLimitError as e:
+            if attempt == max_retries - 1:
+                raise
+            wait = min(2 ** attempt, 30)
+            time.sleep(wait)
+
+
 def process_kuf_pdf(pdf_bytes, filename="", api_key=None):
     """Obrađuje PDF ulazne fakture i vraća dict sa KUF podacima."""
     client = openai.OpenAI(api_key=api_key)
@@ -271,7 +284,8 @@ def process_kuf_pdf(pdf_bytes, filename="", api_key=None):
     else:
         content.append({"type": "text", "text": KUF_EXTRACTION_PROMPT})
 
-    response = client.chat.completions.create(
+    response = _chat_completion_with_retry(
+        client,
         model="gpt-4o-mini",
         temperature=0,
         max_tokens=2000,
@@ -443,7 +457,8 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     else:
         content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}"})
 
-    response = client.chat.completions.create(
+    response = _chat_completion_with_retry(
+        client,
         model="gpt-4o-mini",
         temperature=0,
         max_tokens=2000,
@@ -606,7 +621,8 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
     else:
         content.append({"type": "text", "text": FISCAL_EXTRACTION_PROMPT})
 
-    response = client.chat.completions.create(
+    response = _chat_completion_with_retry(
+        client,
         model="gpt-4o-mini",
         temperature=0,
         max_tokens=4000,
