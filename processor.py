@@ -271,7 +271,7 @@ def process_kuf_pdf(pdf_bytes, filename="", api_key=None):
         content.append({"type": "text", "text": KUF_EXTRACTION_PROMPT})
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         temperature=0,
         max_tokens=2000,
         messages=[{"role": "user", "content": content}],
@@ -443,7 +443,7 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
         content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}"})
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         temperature=0,
         max_tokens=2000,
         messages=[{"role": "user", "content": content}],
@@ -592,7 +592,7 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
         content.append({"type": "text", "text": FISCAL_EXTRACTION_PROMPT})
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         temperature=0,
         max_tokens=4000,
         messages=[{"role": "user", "content": content}],
