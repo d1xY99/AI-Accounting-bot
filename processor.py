@@ -139,43 +139,39 @@ def match_kupac_name(extracted_name, known_names):
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 KUPCI_NAMES = load_kupci_names(os.path.join(_SCRIPT_DIR, "kupci.xlsx"))
 
-EXTRACTION_PROMPT_TEXT = """Izvuci podatke iz teksta fakture. Vrati SAMO JSON objekat, bez markdown.
-KUPAC = firma na koju glasi račun ("Kupac:", "Korisnik:"). DOBAVLJAČ = firma koja šalje račun (logo/zaglavlje).
+EXTRACTION_PROMPT = """Ovo je račun/faktura. Izvuci polja i vrati kao JSON objekat.
+
+Ključevi MORAJU biti TAČNO ovi (ostavi prazan string "" ako ne postoji):
 
 {
-  "BRDOKFAKT": "Broj fakture",
-  "DATUMF": "Datum izdavanja (DD.MM.GGGG)",
-  "NAZIVPP": "Naziv KUPCA sa brojem u zagradama ako postoji, npr. 'Novine BH d.o.o (1295)'",
-  "SJEDISTEPP": "Adresa kupca",
-  "IDDVPP": "JIB kupca, 13 cifara, počinje sa 4",
-  "JIBPUPP": "PDV broj kupca, 12 cifara (JIB bez vodeće 4). Prazan ako nije u PDV sistemu",
-  "IZNOSNOV": "Iznos bez PDV-a (tačka separator, npr. 155.87)",
-  "IZNPDV": "Iznos PDV-a u KM (ne procenat)",
-  "IZNAKFT": "Ukupan iznos sa PDV-om",
-  "REF": "Broj iza 'REF:' ako postoji, inače prazan",
-  "OSL": "Ako piše oslobođene PDV-a po čl.15 ili 27 → '1', čl.26 → '2', inače '0'",
-  "NAZIV_IZDAVACA": "Naziv firme koja IZDAJE račun (dobavljač)"
+  "BRDOKFAKT": "Broj računa/fakture (npr. 432/10, 9034508513, 600398-1-0126-1)",
+  "DATUMF": "Datum izdavanja fakture (format DD.MM.GGGG)",
+  "NAZIVPP": "Puni naziv KUPCA - firma KOJOJ je račun izdat (ne firma koja izdaje račun!). Ako iza naziva stoji broj u zagradama npr. 'Novine BH d.o.o (1295)', ZADRŽI taj broj u zagradama!",
+  "SJEDISTEPP": "Puna adresa kupca sa poštanskim brojem i mjestom",
+  "IDDVPP": "ID broj (JIB) kupca - MORA biti TAČNO 13 cifara i počinjati sa 4. Ako na računu vidiš broj koji nema 13 cifara ili ne počinje sa 4, dodaj vodeću 4 da bude 13 cifara",
+  "JIBPUPP": "PDV broj kupca - MORA biti TAČNO 12 cifara. To je isti broj kao ID/JIB ali BEZ vodeće cifre 4. Ako kupac NIJE u PDV sistemu (nema PDV broj na računu), ostavi prazan string",
+  "IZNOSNOV": "Iznos BEZ PDV-a (decimalni separator tačka, npr. 155.87)",
+  "IZNPDV": "Iznos PDV-a u KM (NE procenat, nego koliko PDV iznosi u novcu, npr. 26.50)",
+  "IZNAKFT": "UKUPAN iznos za uplatu SA PDV-om (npr. 182.37)",
+  "REF": "PAŽLJIVO PREGLEDAJ CIJELU SLIKU za RUČNO NAPISAN (rukom pisan, hemijskom olovkom) tekst 'REF:' ili 'Ref:' ili 'ref:'. Može biti na BILO KOJEM dijelu papira — na margini, pri vrhu, pri dnu, na poleđini, preko teksta fakture. Iza 'REF:' slijedi iznos (broj). Upiši SAMO taj broj. Npr. ako rukom piše 'REF: 250.00' upiši '250.00'. Ako rukom piše 'REF: 1500' upiši '1500'. Rukopis može biti neuredan! Ako NEMA ručno napisanog 'REF:' teksta, ostavi prazan string ''",
+  "OSL": "Provjeri da li na računu postoji tekst o oslobađanju PDV-a. Traži tekst koji sadrži 'oslobođene PDV-a po čl.' ili 'oslobodjene PDV-a po cl.' ili slično. Ako se pominje član 15 ili član 27, upiši '1'. Ako se pominje član 26, upiši '2'. Ako nema takvog teksta, upiši '0'",
+  "NAZIV_IZDAVACA": "Naziv firme koja IZDAJE račun (čiji je logo/zaglavlje). Ovo je DOBAVLJAČ, NE kupac!"
 }
-Decimalni separator tačka. JIB=13 cifara sa 4, PDV=12 cifara. Godina 2025 ili 2026."""
 
-EXTRACTION_PROMPT_IMAGE = """Ovo je račun/faktura. Izvuci polja i vrati SAMO JSON objekat, bez markdown.
-KUPAC = firma na koju glasi račun. DOBAVLJAČ = firma čiji je logo/zaglavlje.
-
-{
-  "BRDOKFAKT": "Broj fakture",
-  "DATUMF": "Datum izdavanja (DD.MM.GGGG)",
-  "NAZIVPP": "Naziv KUPCA sa brojem u zagradama ako postoji",
-  "SJEDISTEPP": "Adresa kupca",
-  "IDDVPP": "JIB kupca, 13 cifara, počinje sa 4",
-  "JIBPUPP": "PDV kupca, 12 cifara (JIB bez vodeće 4). Prazan ako nije u PDV sistemu",
-  "IZNOSNOV": "Iznos bez PDV-a (tačka separator)",
-  "IZNPDV": "Iznos PDV-a u KM",
-  "IZNAKFT": "Ukupan iznos sa PDV-om",
-  "REF": "Traži RUČNO NAPISAN tekst 'REF:' BILO GDJE na papiru (margine, vrh, dno). Upiši broj iza REF. Ako nema, prazan string",
-  "OSL": "oslobođene PDV-a po čl.15/27 → '1', čl.26 → '2', inače '0'",
-  "NAZIV_IZDAVACA": "Naziv firme koja IZDAJE račun"
-}
-Decimalni separator tačka. JIB=13 cifara sa 4, PDV=12 cifara. Godina 2025 ili 2026."""
+VAŽNO:
+- Vrati SAMO čist JSON objekat (NE niz), bez markdown, bez objašnjenja
+- Ovo je jedan račun - vrati jedan JSON objekat
+- KUPAC je firma na koju glasi račun (piše "Korisnik:", "Kupac:", "Za:" ili slično)
+- DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun) - to NIJE kupac!
+- Koristi tačku kao decimalni separator (npr. 102.70)
+- DATUM: Pažljivo pročitaj GODINU! Trenutna godina je 2025 ili 2026. NE čitaj 2026 kao 2020! Format DD.MM.GGGG
+- ID broj (JIB) = 13 cifara, počinje sa 4
+- PDV broj = 12 cifara, isti kao JIB bez vodeće 4 (samo firme u PDV sistemu)
+- IZNPDV je iznos u KM, NE procenat
+- Brojeve prepiši TAČNO
+- REF: OBAVEZNO pregledaj CIJELU sliku za RUČNO NAPISAN tekst "REF:" (hemijskom olovkom, rukom). Može biti BILO GDJE na papiru — margine, vrh, dno, dijagonalno, preko teksta. Rukopis može biti neuredan. Upiši SAMO broj iza "REF:". Ako nema ručno napisanog REF, ostavi prazan string
+- OSL: Traži tekst "oslobođene/oslobodjene PDV-a po čl. 15/26/27" — čl. 15 ili 27 = "1", čl. 26 = "2", nema = "0"
+"""
 
 
 DNEVNI_HEADERS = [
@@ -252,15 +248,11 @@ def _chat_completion_with_retry(client, max_retries=5, **kwargs):
     """Poziva chat.completions.create sa retry logikom za 429 rate limit."""
     for attempt in range(max_retries):
         try:
-            t0 = time.time()
-            result = client.chat.completions.create(**kwargs)
-            print(f"  [API] OK za {time.time()-t0:.1f}s (pokušaj {attempt+1})")
-            return result
+            return client.chat.completions.create(**kwargs)
         except openai.RateLimitError as e:
-            wait = min(2 ** attempt, 30)
-            print(f"  [API] Rate limit! Čekam {wait}s (pokušaj {attempt+1}/{max_retries})")
             if attempt == max_retries - 1:
                 raise
+            wait = min(2 ** attempt, 30)
             time.sleep(wait)
 
 
@@ -436,28 +428,40 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
 
     content = []
     has_text = len(pdf_text) >= MIN_TEXT_LENGTH
+    images = pdf_bytes_to_images_base64(pdf_bytes)
+
+    for img in images:
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{img}"},
+        })
+
+    ref_instruction = (
+        "\n\nPOSEBNO VAŽNO — REF polje:\n"
+        "Na papiru može biti RUČNO NAPISANO (hemijskom olovkom, rukom) 'REF:' i broj iza toga.\n"
+        "Pregledaj CIJELU sliku — margine, uglove, vrh, dno, prostor između redova.\n"
+        "Rukopis je RAZLIČIT od štampanog teksta fakture. Traži bilo kakav rukom pisan tekst.\n"
+        "Ako pronađeš 'REF:' ili nešto što liči na 'REF' napisano rukom, upiši broj koji slijedi.\n"
+        "Ako NEMA ručno napisanog teksta, REF ostavi kao prazan string.\n"
+    )
 
     if has_text:
-        # OCR tekst postoji — šalji SAMO tekst, bez slike (mnogo brže)
         content.append({
             "type": "text",
-            "text": f"Tekst fakture:\n---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT_TEXT}",
+            "text": f"Pogledaj SLIKU da razumiješ raspored - ko je kupac a ko dobavljač.\n"
+                    f"DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun).\n"
+                    f"KUPAC je firma na koju glasi račun (piše 'Korisnik:', 'Kupac:' ili slično).\n\n"
+                    f"Za TAČNE brojeve koristi ovaj tekst iz PDF-a:\n\n"
+                    f"---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT}{ref_instruction}",
         })
     else:
-        # Nema OCR teksta — moramo slati sliku
-        images = pdf_bytes_to_images_base64(pdf_bytes)
-        for img in images:
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{img}"},
-            })
-        content.append({"type": "text", "text": EXTRACTION_PROMPT_IMAGE})
+        content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}"})
 
     response = _chat_completion_with_retry(
         client,
         model="gpt-4o-mini",
         temperature=0,
-        max_tokens=800,
+        max_tokens=2000,
         messages=[{"role": "user", "content": content}],
     )
 
@@ -566,36 +570,14 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
 
     # ── KONTO — samo za fakture izdane od "Naša Riječ" ──
     data["KONTO"] = ""
-    # 1) Provjeri direktno u PDF tekstu (pouzdanije od AI-a)
-    is_nasa_rijec = bool(
-        pdf_text and re.search(r'na[sš]a\s*r[il]je[cč]', pdf_text, re.IGNORECASE)
-    )
-    # 2) Fallback: provjeri AI odgovor
-    if not is_nasa_rijec:
-        izdavac = str(data.get("NAZIV_IZDAVACA", "")).strip()
-        is_nasa_rijec = bool(re.search(r'na[sš]a?\s*rije[cč]', izdavac, re.IGNORECASE))
-
-    if is_nasa_rijec:
-        # Izvuci broj iz zagrada — prvo iz PDF teksta (blizu "Kupac")
-        konto_num = None
-        if pdf_text:
-            kupac_match = re.search(
-                r'[Kk]up(?:ac|rac)\s*[:;]?\s*.*?\((\d+)\)',
-                pdf_text,
-                re.DOTALL,
-            )
-            if kupac_match:
-                konto_num = kupac_match.group(1)
-        # Fallback: iz NAZIVPP koji je AI izvukao
-        if not konto_num:
-            naziv_kupca = str(data.get("NAZIVPP", ""))
-            konto_match = re.search(r'\((\d+)\)', naziv_kupca)
-            if konto_match:
-                konto_num = konto_match.group(1)
-        if konto_num:
-            data["KONTO"] = "2112" + konto_num
+    izdavac = str(data.get("NAZIV_IZDAVACA", "")).strip()
+    if re.search(r'na[sš]a?\s+rije[cč]', izdavac, re.IGNORECASE):
+        naziv_kupca = str(data.get("NAZIVPP", ""))
+        konto_match = re.search(r'\((\d+)\)', naziv_kupca)
+        if konto_match:
+            data["KONTO"] = "2112" + konto_match.group(1)
             # Ukloni broj u zagradama iz naziva kupca
-            data["NAZIVPP"] = re.sub(r'\s*\(\d+\)', '', str(data.get("NAZIVPP", ""))).strip()
+            data["NAZIVPP"] = re.sub(r'\s*\(\d+\)', '', naziv_kupca).strip()
 
     # Ukloni pomoćno polje koje ne ide u tabelu
     data.pop("NAZIV_IZDAVACA", None)
