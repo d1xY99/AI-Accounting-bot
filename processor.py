@@ -156,7 +156,8 @@ Ključevi MORAJU biti TAČNO ovi (ostavi prazan string "" ako ne postoji):
   "IZNAKFT": "UKUPAN iznos za uplatu SA PDV-om (npr. 182.37)",
   "REF": "PAŽLJIVO PREGLEDAJ CIJELU SLIKU za RUČNO NAPISAN (rukom pisan, hemijskom olovkom) tekst 'REF:' ili 'Ref:' ili 'ref:'. Može biti na BILO KOJEM dijelu papira — na margini, pri vrhu, pri dnu, na poleđini, preko teksta fakture. Iza 'REF:' slijedi iznos (broj). Upiši SAMO taj broj. Npr. ako rukom piše 'REF: 250.00' upiši '250.00'. Ako rukom piše 'REF: 1500' upiši '1500'. Rukopis može biti neuredan! Ako NEMA ručno napisanog 'REF:' teksta, ostavi prazan string ''",
   "OSL": "Provjeri da li na računu postoji tekst o oslobađanju PDV-a. Traži tekst koji sadrži 'oslobođene PDV-a po čl.' ili 'oslobodjene PDV-a po cl.' ili slično. Ako se pominje član 15 ili član 27, upiši '1'. Ako se pominje član 26, upiši '2'. Ako nema takvog teksta, upiši '0'",
-  "NAZIV_IZDAVACA": "Naziv firme koja IZDAJE račun (čiji je logo/zaglavlje). Ovo je DOBAVLJAČ, NE kupac!"
+  "NAZIV_IZDAVACA": "Naziv firme koja IZDAJE račun (čiji je logo/zaglavlje). Ovo je DOBAVLJAČ, NE kupac!",
+  "KUPAC_SIFRA": "PAŽLJIVO TRAŽI broj u ZAGRADAMA odmah iza naziva kupca! Npr. ako piše 'Novine BH d.o.o (1295)' upiši '1295'. Ako piše 'OS MEHMEDALIJA MAK DIZDAR VISOKO (290)' upiši '290'. Ako piše 'JU MJESOVITA SREDNJA SKOLA (196)' upiši '196'. Broj je UVIJEK u oblim zagradama () iza naziva kupca. Ako nema broja u zagradama, ostavi prazan string."
 }
 
 VAŽNO:
@@ -583,9 +584,13 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
         is_nasa_rijec = bool(re.search(r'na[sš]a?\s*rije[cč]', izdavac, re.IGNORECASE))
 
     if is_nasa_rijec:
-        # Izvuci broj iz zagrada — prvo iz PDF teksta (blizu "Kupac")
         konto_num = None
-        if pdf_text:
+        # 1) Iz AI polja KUPAC_SIFRA (najdirektnije)
+        kupac_sifra = str(data.get("KUPAC_SIFRA", "")).strip()
+        if kupac_sifra and kupac_sifra.isdigit():
+            konto_num = kupac_sifra
+        # 2) Fallback: iz PDF teksta blizu "Kupac"
+        if not konto_num and pdf_text:
             kupac_match = re.search(
                 r'[Kk]u[pr]a[cr]\s*[:;]?\s*.*?\((\d+)\)',
                 pdf_text,
@@ -593,19 +598,24 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
             )
             if kupac_match:
                 konto_num = kupac_match.group(1)
-        # Fallback: iz NAZIVPP koji je AI izvukao
+        # 3) Fallback: iz NAZIVPP koji je AI izvukao
         if not konto_num:
             naziv_kupca = str(data.get("NAZIVPP", ""))
             konto_match = re.search(r'\((\d+)\)', naziv_kupca)
             if konto_match:
                 konto_num = konto_match.group(1)
+        # 4) Fallback: bilo koji broj u zagradama u PDF tekstu
+        if not konto_num and pdf_text:
+            all_nums = re.findall(r'\((\d{2,5})\)', pdf_text)
+            if len(all_nums) == 1:
+                konto_num = all_nums[0]
         if konto_num:
             data["KONTO"] = "2112" + konto_num
-            # Ukloni broj u zagradama iz naziva kupca
             data["NAZIVPP"] = re.sub(r'\s*\(\d+\)', '', str(data.get("NAZIVPP", ""))).strip()
 
-    # Ukloni pomoćno polje koje ne ide u tabelu
+    # Ukloni pomoćna polja koja ne idu u tabelu
     data.pop("NAZIV_IZDAVACA", None)
+    data.pop("KUPAC_SIFRA", None)
 
     return data
 
