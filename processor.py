@@ -10,6 +10,7 @@ from io import BytesIO
 import tempfile
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 MIN_TEXT_LENGTH = 100
 
@@ -286,7 +287,7 @@ def process_kuf_pdf(pdf_bytes, filename="", api_key=None):
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4o",
+        model="gpt-4.1",
         temperature=0,
         max_tokens=2000,
         messages=[{"role": "user", "content": content}],
@@ -428,38 +429,39 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
 
     content = []
     has_text = len(pdf_text) >= MIN_TEXT_LENGTH
-    images = pdf_bytes_to_images_base64(pdf_bytes)
-
-    for img in images:
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{img}"},
-        })
 
     ref_instruction = (
-        "\n\nPOSEBNO VAŽNO — REF polje:\n"
-        "Na papiru može biti RUČNO NAPISANO (hemijskom olovkom, rukom) 'REF:' i broj iza toga.\n"
-        "Pregledaj CIJELU sliku — margine, uglove, vrh, dno, prostor između redova.\n"
-        "Rukopis je RAZLIČIT od štampanog teksta fakture. Traži bilo kakav rukom pisan tekst.\n"
-        "Ako pronađeš 'REF:' ili nešto što liči na 'REF' napisano rukom, upiši broj koji slijedi.\n"
-        "Ako NEMA ručno napisanog teksta, REF ostavi kao prazan string.\n"
+        "\n\nREF polje: Ako u tekstu vidiš 'REF:' i broj iza toga, upiši taj broj. Inače ostavi prazan string.\n"
     )
 
     if has_text:
+        # OCR tekst postoji — šalji SAMO tekst, bez slike (mnogo brže)
         content.append({
             "type": "text",
-            "text": f"Pogledaj SLIKU da razumiješ raspored - ko je kupac a ko dobavljač.\n"
-                    f"DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun).\n"
+            "text": f"DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun).\n"
                     f"KUPAC je firma na koju glasi račun (piše 'Korisnik:', 'Kupac:' ili slično).\n\n"
-                    f"Za TAČNE brojeve koristi ovaj tekst iz PDF-a:\n\n"
+                    f"Tekst iz PDF-a:\n\n"
                     f"---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT}{ref_instruction}",
         })
     else:
+        # Nema OCR teksta — moramo slati sliku
+        images = pdf_bytes_to_images_base64(pdf_bytes)
+        for img in images:
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{img}"},
+            })
+        ref_instruction = (
+            "\n\nPOSEBNO VAŽNO — REF polje:\n"
+            "Na papiru može biti RUČNO NAPISANO (hemijskom olovkom, rukom) 'REF:' i broj iza toga.\n"
+            "Pregledaj CIJELU sliku — margine, uglove, vrh, dno.\n"
+            "Ako NEMA ručno napisanog teksta, REF ostavi kao prazan string.\n"
+        )
         content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}"})
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4o",
+        model="gpt-4.1",
         temperature=0,
         max_tokens=2000,
         messages=[{"role": "user", "content": content}],
@@ -607,15 +609,27 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     return data
 
 
-def process_multi_page_pdf(pdf_bytes, filename="", api_key=None):
-    """Razdvaja PDF po stranicama i obrađuje svaku kao zaseban račun."""
+def process_multi_page_pdf(pdf_bytes, filename="", api_key=None, max_workers=4):
+    """Razdvaja PDF po stranicama i obrađuje paralelno."""
     pages = split_pdf_to_pages(pdf_bytes)
-    results = []
-    for page_num, page_bytes in pages:
+
+    def _process_one(page_num, page_bytes):
         data = process_pdf(page_bytes, filename=f"{filename} (str. {page_num})", api_key=api_key)
         data["_page_num"] = page_num
         data["_page_bytes"] = page_bytes
-        results.append(data)
+        return page_num, data
+
+    results = [None] * len(pages)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_process_one, page_num, page_bytes): i
+            for i, (page_num, page_bytes) in enumerate(pages)
+        }
+        for future in as_completed(futures):
+            idx = futures[future]
+            _, data = future.result()
+            results[idx] = data
+
     return results
 
 
@@ -645,7 +659,7 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4o",
+        model="gpt-4.1",
         temperature=0,
         max_tokens=4000,
         messages=[{"role": "user", "content": content}],
