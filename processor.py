@@ -431,33 +431,31 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     content = []
     has_text = len(pdf_text) >= MIN_TEXT_LENGTH
 
+    # UVIJEK šalji sliku — OCR tekst je često pokvarjen i AI treba vidjeti raspored
+    images = pdf_bytes_to_images_base64(pdf_bytes)
+    for img in images:
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{img}"},
+        })
+
     ref_instruction = (
-        "\n\nREF polje: Ako u tekstu vidiš 'REF:' i broj iza toga, upiši taj broj. Inače ostavi prazan string.\n"
+        "\n\nPOSEBNO VAŽNO — REF polje:\n"
+        "Na papiru može biti RUČNO NAPISANO (hemijskom olovkom, rukom) 'REF:' i broj iza toga.\n"
+        "Pregledaj CIJELU sliku — margine, uglove, vrh, dno.\n"
+        "Ako NEMA ručno napisanog teksta, REF ostavi kao prazan string.\n"
     )
 
     if has_text:
-        # OCR tekst postoji — šalji SAMO tekst, bez slike (mnogo brže)
         content.append({
             "type": "text",
-            "text": f"DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun).\n"
+            "text": f"Pogledaj SLIKU da razumiješ raspored - ko je kupac a ko dobavljač.\n"
+                    f"DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun).\n"
                     f"KUPAC je firma na koju glasi račun (piše 'Korisnik:', 'Kupac:' ili slično).\n\n"
-                    f"Tekst iz PDF-a:\n\n"
+                    f"Za TAČNE brojeve koristi ovaj tekst iz PDF-a:\n\n"
                     f"---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT}{ref_instruction}",
         })
     else:
-        # Nema OCR teksta — moramo slati sliku
-        images = pdf_bytes_to_images_base64(pdf_bytes)
-        for img in images:
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{img}"},
-            })
-        ref_instruction = (
-            "\n\nPOSEBNO VAŽNO — REF polje:\n"
-            "Na papiru može biti RUČNO NAPISANO (hemijskom olovkom, rukom) 'REF:' i broj iza toga.\n"
-            "Pregledaj CIJELU sliku — margine, uglove, vrh, dno.\n"
-            "Ako NEMA ručno napisanog teksta, REF ostavi kao prazan string.\n"
-        )
         content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}"})
 
     response = _chat_completion_with_retry(
