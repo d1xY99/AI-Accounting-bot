@@ -15,7 +15,7 @@ MIN_TEXT_LENGTH = 100
 KIF_HEADERS = [
     "REDBR", "TIPDOK", "BRDOKFAKT", "DATUMF",
     "NAZIVPP", "SJEDISTEPP", "IDDVPP", "JIBPUPP",
-    "IZNAKFT", "IZNOSNOV", "IZNPDV", "REF", "OSL",
+    "IZNAKFT", "IZNOSNOV", "IZNPDV", "REF", "OSL", "KONTO",
 ]
 
 POZNATI_PARTNERI = [
@@ -145,7 +145,7 @@ Ključevi MORAJU biti TAČNO ovi (ostavi prazan string "" ako ne postoji):
 {
   "BRDOKFAKT": "Broj računa/fakture (npr. 432/10, 9034508513, 600398-1-0126-1)",
   "DATUMF": "Datum izdavanja fakture (format DD.MM.GGGG)",
-  "NAZIVPP": "Puni naziv KUPCA - firma KOJOJ je račun izdat (ne firma koja izdaje račun!)",
+  "NAZIVPP": "Puni naziv KUPCA - firma KOJOJ je račun izdat (ne firma koja izdaje račun!). Ako iza naziva stoji broj u zagradama npr. 'Novine BH d.o.o (1295)', ZADRŽI taj broj u zagradama!",
   "SJEDISTEPP": "Puna adresa kupca sa poštanskim brojem i mjestom",
   "IDDVPP": "ID broj (JIB) kupca - MORA biti TAČNO 13 cifara i počinjati sa 4. Ako na računu vidiš broj koji nema 13 cifara ili ne počinje sa 4, dodaj vodeću 4 da bude 13 cifara",
   "JIBPUPP": "PDV broj kupca - MORA biti TAČNO 12 cifara. To je isti broj kao ID/JIB ali BEZ vodeće cifre 4. Ako kupac NIJE u PDV sistemu (nema PDV broj na računu), ostavi prazan string",
@@ -153,7 +153,8 @@ Ključevi MORAJU biti TAČNO ovi (ostavi prazan string "" ako ne postoji):
   "IZNPDV": "Iznos PDV-a u KM (NE procenat, nego koliko PDV iznosi u novcu, npr. 26.50)",
   "IZNAKFT": "UKUPAN iznos za uplatu SA PDV-om (npr. 182.37)",
   "REF": "PAŽLJIVO PREGLEDAJ CIJELU SLIKU za RUČNO NAPISAN (rukom pisan, hemijskom olovkom) tekst 'REF:' ili 'Ref:' ili 'ref:'. Može biti na BILO KOJEM dijelu papira — na margini, pri vrhu, pri dnu, na poleđini, preko teksta fakture. Iza 'REF:' slijedi iznos (broj). Upiši SAMO taj broj. Npr. ako rukom piše 'REF: 250.00' upiši '250.00'. Ako rukom piše 'REF: 1500' upiši '1500'. Rukopis može biti neuredan! Ako NEMA ručno napisanog 'REF:' teksta, ostavi prazan string ''",
-  "OSL": "Provjeri da li na računu postoji tekst o oslobađanju PDV-a. Traži tekst koji sadrži 'oslobođene PDV-a po čl.' ili 'oslobodjene PDV-a po cl.' ili slično. Ako se pominje član 15 ili član 27, upiši '1'. Ako se pominje član 26, upiši '2'. Ako nema takvog teksta, upiši '0'"
+  "OSL": "Provjeri da li na računu postoji tekst o oslobađanju PDV-a. Traži tekst koji sadrži 'oslobođene PDV-a po čl.' ili 'oslobodjene PDV-a po cl.' ili slično. Ako se pominje član 15 ili član 27, upiši '1'. Ako se pominje član 26, upiši '2'. Ako nema takvog teksta, upiši '0'",
+  "NAZIV_IZDAVACA": "Naziv firme koja IZDAJE račun (čiji je logo/zaglavlje). Ovo je DOBAVLJAČ, NE kupac!"
 }
 
 VAŽNO:
@@ -551,6 +552,20 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
             # jer tekst iz slike ne mora biti u pdf_text
             pass
     data["OSL"] = osl_val
+
+    # ── KONTO — samo za fakture izdane od "Naša Riječ" ──
+    data["KONTO"] = ""
+    izdavac = str(data.get("NAZIV_IZDAVACA", "")).strip()
+    if re.search(r'na[sš]a?\s+rije[cč]', izdavac, re.IGNORECASE):
+        naziv_kupca = str(data.get("NAZIVPP", ""))
+        konto_match = re.search(r'\((\d+)\)', naziv_kupca)
+        if konto_match:
+            data["KONTO"] = "2112" + konto_match.group(1)
+            # Ukloni broj u zagradama iz naziva kupca
+            data["NAZIVPP"] = re.sub(r'\s*\(\d+\)', '', naziv_kupca).strip()
+
+    # Ukloni pomoćno polje koje ne ide u tabelu
+    data.pop("NAZIV_IZDAVACA", None)
 
     return data
 
