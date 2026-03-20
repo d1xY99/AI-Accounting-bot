@@ -253,11 +253,15 @@ def _chat_completion_with_retry(client, max_retries=5, **kwargs):
     """Poziva chat.completions.create sa retry logikom za 429 rate limit."""
     for attempt in range(max_retries):
         try:
-            return client.chat.completions.create(**kwargs)
+            t0 = time.time()
+            result = client.chat.completions.create(**kwargs)
+            print(f"  [API] OK za {time.time()-t0:.1f}s (pokušaj {attempt+1})")
+            return result
         except openai.RateLimitError as e:
+            wait = min(2 ** attempt, 30)
+            print(f"  [API] Rate limit! Čekam {wait}s (pokušaj {attempt+1}/{max_retries})")
             if attempt == max_retries - 1:
                 raise
-            wait = min(2 ** attempt, 30)
             time.sleep(wait)
 
 
