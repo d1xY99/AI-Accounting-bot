@@ -10,7 +10,6 @@ from io import BytesIO
 import tempfile
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 MIN_TEXT_LENGTH = 100
 
@@ -604,27 +603,15 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     return data
 
 
-def process_multi_page_pdf(pdf_bytes, filename="", api_key=None, max_workers=4):
-    """Razdvaja PDF po stranicama i obrađuje paralelno."""
+def process_multi_page_pdf(pdf_bytes, filename="", api_key=None):
+    """Razdvaja PDF po stranicama i obrađuje svaku kao zaseban račun."""
     pages = split_pdf_to_pages(pdf_bytes)
-
-    def _process_one(page_num, page_bytes):
+    results = []
+    for page_num, page_bytes in pages:
         data = process_pdf(page_bytes, filename=f"{filename} (str. {page_num})", api_key=api_key)
         data["_page_num"] = page_num
         data["_page_bytes"] = page_bytes
-        return page_num, data
-
-    results = [None] * len(pages)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(_process_one, page_num, page_bytes): i
-            for i, (page_num, page_bytes) in enumerate(pages)
-        }
-        for future in as_completed(futures):
-            idx = futures[future]
-            _, data = future.result()
-            results[idx] = data
-
+        results.append(data)
     return results
 
 
