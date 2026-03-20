@@ -570,14 +570,36 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
 
     # ── KONTO — samo za fakture izdane od "Naša Riječ" ──
     data["KONTO"] = ""
-    izdavac = str(data.get("NAZIV_IZDAVACA", "")).strip()
-    if re.search(r'na[sš]a?\s+rije[cč]', izdavac, re.IGNORECASE):
-        naziv_kupca = str(data.get("NAZIVPP", ""))
-        konto_match = re.search(r'\((\d+)\)', naziv_kupca)
-        if konto_match:
-            data["KONTO"] = "2112" + konto_match.group(1)
+    # 1) Provjeri direktno u PDF tekstu (pouzdanije od AI-a)
+    is_nasa_rijec = bool(
+        pdf_text and re.search(r'na[sš]a\s*r[il]je[cč]', pdf_text, re.IGNORECASE)
+    )
+    # 2) Fallback: provjeri AI odgovor
+    if not is_nasa_rijec:
+        izdavac = str(data.get("NAZIV_IZDAVACA", "")).strip()
+        is_nasa_rijec = bool(re.search(r'na[sš]a?\s*rije[cč]', izdavac, re.IGNORECASE))
+
+    if is_nasa_rijec:
+        # Izvuci broj iz zagrada — prvo iz PDF teksta (blizu "Kupac")
+        konto_num = None
+        if pdf_text:
+            kupac_match = re.search(
+                r'[Kk]up(?:ac|rac)\s*[:;]?\s*.*?\((\d+)\)',
+                pdf_text,
+                re.DOTALL,
+            )
+            if kupac_match:
+                konto_num = kupac_match.group(1)
+        # Fallback: iz NAZIVPP koji je AI izvukao
+        if not konto_num:
+            naziv_kupca = str(data.get("NAZIVPP", ""))
+            konto_match = re.search(r'\((\d+)\)', naziv_kupca)
+            if konto_match:
+                konto_num = konto_match.group(1)
+        if konto_num:
+            data["KONTO"] = "2112" + konto_num
             # Ukloni broj u zagradama iz naziva kupca
-            data["NAZIVPP"] = re.sub(r'\s*\(\d+\)', '', naziv_kupca).strip()
+            data["NAZIVPP"] = re.sub(r'\s*\(\d+\)', '', str(data.get("NAZIVPP", ""))).strip()
 
     # Ukloni pomoćno polje koje ne ide u tabelu
     data.pop("NAZIV_IZDAVACA", None)
