@@ -288,7 +288,7 @@ def process_kuf_pdf(pdf_bytes, filename="", api_key=None):
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4.1",
+        model="gpt-4o",
         temperature=0,
         max_tokens=2000,
         messages=[{"role": "user", "content": content}],
@@ -460,7 +460,7 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4.1",
+        model="gpt-4o",
         temperature=0,
         max_tokens=2000,
         messages=[{"role": "user", "content": content}],
@@ -668,7 +668,7 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4.1",
+        model="gpt-4o",
         temperature=0,
         max_tokens=4000,
         messages=[{"role": "user", "content": content}],
