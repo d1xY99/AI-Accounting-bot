@@ -287,7 +287,7 @@ def process_kuf_pdf(pdf_bytes, filename="", api_key=None):
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4.1",
+        model="gpt-4o",
         temperature=0,
         max_tokens=2000,
         messages=[{"role": "user", "content": content}],
@@ -461,7 +461,7 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4.1",
+        model="gpt-4o",
         temperature=0,
         max_tokens=2000,
         messages=[{"role": "user", "content": content}],
@@ -573,8 +573,9 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     # ── KONTO — samo za fakture izdane od "Naša Riječ" ──
     data["KONTO"] = ""
     # 1) Provjeri direktno u PDF tekstu (pouzdanije od AI-a)
+    # OCR često kvari tekst: "NASA R JEC", "NASA RLSEC", "NASA RIJE" itd.
     is_nasa_rijec = bool(
-        pdf_text and re.search(r'na[sš]a\s*r[il]je[cč]', pdf_text, re.IGNORECASE)
+        pdf_text and re.search(r'nasa\s+r', pdf_text, re.IGNORECASE)
     )
     # 2) Fallback: provjeri AI odgovor
     if not is_nasa_rijec:
@@ -586,7 +587,7 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
         konto_num = None
         if pdf_text:
             kupac_match = re.search(
-                r'[Kk]up(?:ac|rac)\s*[:;]?\s*.*?\((\d+)\)',
+                r'[Kk]u[pr]a[cr]\s*[:;]?\s*.*?\((\d+)\)',
                 pdf_text,
                 re.DOTALL,
             )
@@ -659,7 +660,7 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4.1",
+        model="gpt-4o",
         temperature=0,
         max_tokens=4000,
         messages=[{"role": "user", "content": content}],
