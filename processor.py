@@ -10,6 +10,7 @@ from io import BytesIO
 import tempfile
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 MIN_TEXT_LENGTH = 100
 
@@ -286,7 +287,7 @@ def process_kuf_pdf(pdf_bytes, filename="", api_key=None):
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4o-mini",
+        model="gpt-4.1",
         temperature=0,
         max_tokens=2000,
         messages=[{"role": "user", "content": content}],
@@ -429,35 +430,38 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     content = []
     has_text = len(pdf_text) >= MIN_TEXT_LENGTH
 
+    ref_instruction = (
+        "\n\nREF polje: Ako u tekstu vidiš 'REF:' i broj iza toga, upiši taj broj. Inače ostavi prazan string.\n"
+    )
+
     if has_text:
-        # OCR tekst postoji — šalji SAMO tekst, bez slike (drastično brže)
+        # OCR tekst postoji — šalji SAMO tekst, bez slike (mnogo brže)
         content.append({
             "type": "text",
             "text": f"DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun).\n"
                     f"KUPAC je firma na koju glasi račun (piše 'Korisnik:', 'Kupac:' ili slično).\n\n"
                     f"Tekst iz PDF-a:\n\n"
-                    f"---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT}"
-                    f"\n\nREF: Ako u tekstu vidiš 'REF:' i broj iza toga, upiši taj broj. Inače prazan string.",
+                    f"---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT}{ref_instruction}",
         })
     else:
-        # Nema OCR — šalji sliku
+        # Nema OCR teksta — moramo slati sliku
         images = pdf_bytes_to_images_base64(pdf_bytes)
         for img in images:
             content.append({
                 "type": "image_url",
                 "image_url": {"url": f"data:image/png;base64,{img}"},
             })
-        content.append({"type": "text", "text": (
-            f"{EXTRACTION_PROMPT}"
+        ref_instruction = (
             "\n\nPOSEBNO VAŽNO — REF polje:\n"
             "Na papiru može biti RUČNO NAPISANO (hemijskom olovkom, rukom) 'REF:' i broj iza toga.\n"
             "Pregledaj CIJELU sliku — margine, uglove, vrh, dno.\n"
             "Ako NEMA ručno napisanog teksta, REF ostavi kao prazan string.\n"
-        )})
+        )
+        content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}"})
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4o-mini",
+        model="gpt-4.1",
         temperature=0,
         max_tokens=2000,
         messages=[{"role": "user", "content": content}],
@@ -568,14 +572,36 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
 
     # ── KONTO — samo za fakture izdane od "Naša Riječ" ──
     data["KONTO"] = ""
-    izdavac = str(data.get("NAZIV_IZDAVACA", "")).strip()
-    if re.search(r'na[sš]a?\s+rije[cč]', izdavac, re.IGNORECASE):
-        naziv_kupca = str(data.get("NAZIVPP", ""))
-        konto_match = re.search(r'\((\d+)\)', naziv_kupca)
-        if konto_match:
-            data["KONTO"] = "2112" + konto_match.group(1)
+    # 1) Provjeri direktno u PDF tekstu (pouzdanije od AI-a)
+    is_nasa_rijec = bool(
+        pdf_text and re.search(r'na[sš]a\s*r[il]je[cč]', pdf_text, re.IGNORECASE)
+    )
+    # 2) Fallback: provjeri AI odgovor
+    if not is_nasa_rijec:
+        izdavac = str(data.get("NAZIV_IZDAVACA", "")).strip()
+        is_nasa_rijec = bool(re.search(r'na[sš]a?\s*rije[cč]', izdavac, re.IGNORECASE))
+
+    if is_nasa_rijec:
+        # Izvuci broj iz zagrada — prvo iz PDF teksta (blizu "Kupac")
+        konto_num = None
+        if pdf_text:
+            kupac_match = re.search(
+                r'[Kk]up(?:ac|rac)\s*[:;]?\s*.*?\((\d+)\)',
+                pdf_text,
+                re.DOTALL,
+            )
+            if kupac_match:
+                konto_num = kupac_match.group(1)
+        # Fallback: iz NAZIVPP koji je AI izvukao
+        if not konto_num:
+            naziv_kupca = str(data.get("NAZIVPP", ""))
+            konto_match = re.search(r'\((\d+)\)', naziv_kupca)
+            if konto_match:
+                konto_num = konto_match.group(1)
+        if konto_num:
+            data["KONTO"] = "2112" + konto_num
             # Ukloni broj u zagradama iz naziva kupca
-            data["NAZIVPP"] = re.sub(r'\s*\(\d+\)', '', naziv_kupca).strip()
+            data["NAZIVPP"] = re.sub(r'\s*\(\d+\)', '', str(data.get("NAZIVPP", ""))).strip()
 
     # Ukloni pomoćno polje koje ne ide u tabelu
     data.pop("NAZIV_IZDAVACA", None)
@@ -583,15 +609,27 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     return data
 
 
-def process_multi_page_pdf(pdf_bytes, filename="", api_key=None):
-    """Razdvaja PDF po stranicama i obrađuje svaku kao zaseban račun."""
+def process_multi_page_pdf(pdf_bytes, filename="", api_key=None, max_workers=4):
+    """Razdvaja PDF po stranicama i obrađuje paralelno."""
     pages = split_pdf_to_pages(pdf_bytes)
-    results = []
-    for page_num, page_bytes in pages:
+
+    def _process_one(page_num, page_bytes):
         data = process_pdf(page_bytes, filename=f"{filename} (str. {page_num})", api_key=api_key)
         data["_page_num"] = page_num
         data["_page_bytes"] = page_bytes
-        results.append(data)
+        return page_num, data
+
+    results = [None] * len(pages)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_process_one, page_num, page_bytes): i
+            for i, (page_num, page_bytes) in enumerate(pages)
+        }
+        for future in as_completed(futures):
+            idx = futures[future]
+            _, data = future.result()
+            results[idx] = data
+
     return results
 
 
@@ -621,7 +659,7 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
 
     response = _chat_completion_with_retry(
         client,
-        model="gpt-4o-mini",
+        model="gpt-4.1",
         temperature=0,
         max_tokens=4000,
         messages=[{"role": "user", "content": content}],
