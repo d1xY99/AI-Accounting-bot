@@ -501,7 +501,9 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     data = validate_id_pdv(data)
 
     # Fiksna polja
-    data["REDBR"] = random.randint(1, 10)
+    brdok = str(data.get("BRDOKFAKT", ""))
+    redbr_match = re.match(r'(\d+)', brdok)
+    data["REDBR"] = redbr_match.group(1) if redbr_match else ""
     data["TIPDOK"] = "01"
 
     # Konvertuj brojeve u string sa tačkom kao separatorom
