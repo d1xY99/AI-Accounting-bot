@@ -587,10 +587,16 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     if is_nasa_rijec:
         # ── OSL za Naša Riječ: 1=Naša Riječ, 2=ZE-DO Eko, 3=ostalo ──
         naziv_usluge = str(data.get("NAZIV_USLUGE", ""))
-        if re.search(r'na[sš]a?\s*rije[cč]', naziv_usluge, re.IGNORECASE):
-            data["OSL"] = "1"
-        elif re.search(r'ze[\s-]*do\s*eko', naziv_usluge, re.IGNORECASE):
+        # Fallback: ako AI nije izvukao, traži direktno u PDF tekstu
+        if not naziv_usluge and pdf_text:
+            if re.search(r'ze[\s-]*do', pdf_text, re.IGNORECASE):
+                naziv_usluge = "ZE-DO Eko"
+            elif re.search(r'na[sš]a\s*rije[cč]', pdf_text, re.IGNORECASE):
+                naziv_usluge = "Naša Riječ"
+        if re.search(r'ze[\s-]*do', naziv_usluge, re.IGNORECASE):
             data["OSL"] = "2"
+        elif re.search(r'na[sš]a?\s*rije[cč]', naziv_usluge, re.IGNORECASE):
+            data["OSL"] = "1"
         else:
             data["OSL"] = "3"
 
