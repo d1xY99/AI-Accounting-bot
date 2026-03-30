@@ -503,7 +503,7 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     # Fiksna polja
     brdok = str(data.get("BRDOKFAKT", ""))
     redbr_match = re.match(r'(\d+)', brdok)
-    data["REDBR"] = redbr_match.group(1) if redbr_match else ""
+    data["REDBR"] = int(redbr_match.group(1)) if redbr_match else 0
     data["TIPDOK"] = "01"
 
     # Konvertuj brojeve u string sa tačkom kao separatorom
