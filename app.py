@@ -53,15 +53,20 @@ def get_api_key():
 logo_b64 = get_logo_b64()
 
 
+_NUMERIC_FIELDS = {"REDBR"}
+
+
 def _write_dbf(dataframe, headers, encoding="cp852"):
     """Kreira dBASE III DBF sa ručnim enkodiranjem za ispravan prikaz č, ć, š, ž, đ."""
-    FIELD_LEN = 100
+    CHAR_LEN = 100
+    NUM_LEN = 10
     lang_map = {"cp852": 0x64, "cp1250": 0xC8, "cp437": 0x01, "cp850": 0x02}
     lang_byte = lang_map.get(encoding, 0x00)
     n_fields = len(headers)
     n_records = len(dataframe)
+    field_lens = [NUM_LEN if h in _NUMERIC_FIELDS else CHAR_LEN for h in headers]
     header_size = 32 + (n_fields * 32) + 1
-    record_size = 1 + (n_fields * FIELD_LEN)
+    record_size = 1 + sum(field_lens)
 
     buf = BytesIO()
     # ── Header (32 bytes) ──
@@ -75,12 +80,15 @@ def _write_dbf(dataframe, headers, encoding="cp852"):
     buf.write(b'\x00' * 2)                          # Reserved
 
     # ── Field descriptors (32 bytes each) ──
-    for h in headers:
+    for h, flen in zip(headers, field_lens):
         name = h[:10].encode('ascii', errors='replace').ljust(11, b'\x00')
         buf.write(name)                             # Ime polja (11 bytes)
-        buf.write(b'C')                             # Tip: Character
+        if h in _NUMERIC_FIELDS:
+            buf.write(b'N')                         # Tip: Numeric
+        else:
+            buf.write(b'C')                         # Tip: Character
         buf.write(b'\x00' * 4)                      # Reserved
-        buf.write(struct.pack('<B', FIELD_LEN))     # Dužina polja
+        buf.write(struct.pack('<B', flen))           # Dužina polja
         buf.write(b'\x00')                          # Decimal count
         buf.write(b'\x00' * 14)                     # Reserved
     buf.write(b'\r')                                # Header terminator
@@ -88,10 +96,13 @@ def _write_dbf(dataframe, headers, encoding="cp852"):
     # ── Records ──
     for _, row in dataframe.iterrows():
         buf.write(b' ')                             # Delete flag
-        for h in headers:
+        for h, flen in zip(headers, field_lens):
             val = str(row.get(h, ""))
-            encoded = val.encode(encoding, errors='replace')[:FIELD_LEN]
-            buf.write(encoded.ljust(FIELD_LEN, b' '))
+            if h in _NUMERIC_FIELDS:
+                buf.write(val.encode('ascii', errors='replace')[:flen].rjust(flen, b' '))
+            else:
+                encoded = val.encode(encoding, errors='replace')[:flen]
+                buf.write(encoded.ljust(flen, b' '))
     buf.write(b'\x1a')                              # EOF marker
     return buf.getvalue()
 
