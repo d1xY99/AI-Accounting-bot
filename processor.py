@@ -157,7 +157,8 @@ Ključevi MORAJU biti TAČNO ovi (ostavi prazan string "" ako ne postoji):
   "REF": "PAŽLJIVO PREGLEDAJ CIJELU SLIKU za RUČNO NAPISAN (rukom pisan, hemijskom olovkom) tekst 'REF:' ili 'Ref:' ili 'ref:'. Može biti na BILO KOJEM dijelu papira — na margini, pri vrhu, pri dnu, na poleđini, preko teksta fakture. Iza 'REF:' slijedi iznos (broj). Upiši SAMO taj broj. Npr. ako rukom piše 'REF: 250.00' upiši '250.00'. Ako rukom piše 'REF: 1500' upiši '1500'. Rukopis može biti neuredan! Ako NEMA ručno napisanog 'REF:' teksta, ostavi prazan string ''",
   "OSL": "Provjeri da li na računu postoji tekst o oslobađanju PDV-a. Traži tekst koji sadrži 'oslobođene PDV-a po čl.' ili 'oslobodjene PDV-a po cl.' ili slično. Ako se pominje član 15 ili član 27, upiši '1'. Ako se pominje član 26, upiši '2'. Ako nema takvog teksta, upiši '0'",
   "NAZIV_IZDAVACA": "Naziv firme koja IZDAJE račun (čiji je logo/zaglavlje). Ovo je DOBAVLJAČ, NE kupac!",
-  "KUPAC_SIFRA": "PAŽLJIVO TRAŽI broj u ZAGRADAMA odmah iza naziva kupca! Npr. ako piše 'Novine BH d.o.o (1295)' upiši '1295'. Ako piše 'OS MEHMEDALIJA MAK DIZDAR VISOKO (290)' upiši '290'. Ako piše 'JU MJESOVITA SREDNJA SKOLA (196)' upiši '196'. Broj je UVIJEK u oblim zagradama () iza naziva kupca. Ako nema broja u zagradama, ostavi prazan string."
+  "KUPAC_SIFRA": "PAŽLJIVO TRAŽI broj u ZAGRADAMA odmah iza naziva kupca! Npr. ako piše 'Novine BH d.o.o (1295)' upiši '1295'. Ako piše 'OS MEHMEDALIJA MAK DIZDAR VISOKO (290)' upiši '290'. Ako piše 'JU MJESOVITA SREDNJA SKOLA (196)' upiši '196'. Broj je UVIJEK u oblim zagradama () iza naziva kupca. Ako nema broja u zagradama, ostavi prazan string.",
+  "NAZIV_USLUGE": "Pronađi tabelu sa stavkama na računu (kolona 'NAZIV (VRSTA) USLUGE/DOBRA' ili slično). Upiši naziv iz PRVOG reda te tabele. Npr. 'Naša Riječ', 'ZE-DO Eko', 'Oglas' itd. Ako nema tabele sa stavkama, ostavi prazan string."
 }
 
 VAŽNO:
@@ -584,6 +585,15 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
         is_nasa_rijec = bool(re.search(r'na[sš]a?\s*rije[cč]', izdavac, re.IGNORECASE))
 
     if is_nasa_rijec:
+        # ── OSL za Naša Riječ: 1=Naša Riječ, 2=ZE-DO Eko, 3=ostalo ──
+        naziv_usluge = str(data.get("NAZIV_USLUGE", ""))
+        if re.search(r'na[sš]a?\s*rije[cč]', naziv_usluge, re.IGNORECASE):
+            data["OSL"] = "1"
+        elif re.search(r'ze[\s-]*do\s*eko', naziv_usluge, re.IGNORECASE):
+            data["OSL"] = "2"
+        else:
+            data["OSL"] = "3"
+
         konto_num = None
         # 1) Iz AI polja KUPAC_SIFRA (najdirektnije)
         kupac_sifra = str(data.get("KUPAC_SIFRA", "")).strip()
@@ -616,6 +626,7 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     # Ukloni pomoćna polja koja ne idu u tabelu
     data.pop("NAZIV_IZDAVACA", None)
     data.pop("KUPAC_SIFRA", None)
+    data.pop("NAZIV_USLUGE", None)
 
     return data
 
