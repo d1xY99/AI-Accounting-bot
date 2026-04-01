@@ -583,21 +583,13 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     # UVIJEK šalji sliku — OCR tekst je često pokvarjen i AI treba vidjeti raspored
     images, is_multipage = pdf_bytes_to_images_base64(pdf_bytes)
     mime = "image/jpeg" if is_multipage else "image/png"
-    for img in images:
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:{mime};base64,{img}"},
-        })
 
-    multipage_instruction = ""
-    if len(images) > 1:
-        multipage_instruction = (
-            f"\n\nPAŽNJA — VIŠESTRANIČNI RAČUN ({len(images)} stranica):\n"
-            "Ovo je JEDAN račun koji se proteže na više stranica.\n"
-            "IZNAKFT, IZNOSNOV i IZNPDV se nalaze na ZADNJOJ stranici u redu 'UKUPAN IZNOS ZA NAPLATU KM', "
-            "'Ukupno bez PDV-a' i 'Ukupno PDV 17%'.\n"
-            "OBAVEZNO koristi iznose sa ZADNJE stranice, NE sa prve!\n"
-        )
+    # Za višestranične: šalji SAMO prvu stranicu za header/kupac info
+    first_img = images[0]
+    content.append({
+        "type": "image_url",
+        "image_url": {"url": f"data:{mime};base64,{first_img}"},
+    })
 
     ref_instruction = (
         "\n\nPOSEBNO VAŽNO — REF polje:\n"
@@ -606,17 +598,24 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
         "Ako NEMA ručno napisanog teksta, REF ostavi kao prazan string.\n"
     )
 
-    if has_text:
+    if is_multipage:
+        # Višestranični: traži samo header podatke sa prve stranice, iznose ćemo izvući zasebno
+        content.append({"type": "text", "text": (
+            "Ovo je PRVA stranica višestraničnog računa. Izvuci podatke o kupcu i računu. "
+            "Za IZNAKFT, IZNOSNOV i IZNPDV upiši '0' — iznose ću izvući sa zadnje stranice zasebno.\n\n"
+            f"{EXTRACTION_PROMPT}{ref_instruction}"
+        )})
+    elif has_text:
         content.append({
             "type": "text",
             "text": f"Pogledaj SLIKU da razumiješ raspored - ko je kupac a ko dobavljač.\n"
                     f"DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun).\n"
                     f"KUPAC je firma na koju glasi račun (piše 'Korisnik:', 'Kupac:' ili slično).\n\n"
                     f"Za TAČNE brojeve koristi ovaj tekst iz PDF-a:\n\n"
-                    f"---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT}{ref_instruction}{multipage_instruction}",
+                    f"---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT}{ref_instruction}",
         })
     else:
-        content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}{multipage_instruction}"})
+        content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}"})
 
     response = _chat_completion_with_retry(
         client,
@@ -638,6 +637,44 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
         raw = raw[start:end]
 
     data = json.loads(raw)
+
+    # ── Za višestranične: drugi AI poziv — izvuci iznose sa ZADNJE stranice ──
+    if is_multipage and len(images) > 1:
+        last_img = images[-1]
+        amounts_response = _chat_completion_with_retry(
+            client,
+            model="gpt-4o",
+            temperature=0,
+            max_tokens=200,
+            messages=[{"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{last_img}"}},
+                {"type": "text", "text": (
+                    "Ovo je ZADNJA stranica računa. Na dnu se nalaze ukupni iznosi.\n"
+                    "Pronađi i vrati SAMO ova 3 broja kao JSON:\n"
+                    "{\n"
+                    '  "IZNAKFT": "UKUPAN IZNOS ZA NAPLATU KM (npr. 437.53)",\n'
+                    '  "IZNOSNOV": "Ukupno bez PDV-a (npr. 373.96)",\n'
+                    '  "IZNPDV": "Ukupno PDV 17% (npr. 63.57)"\n'
+                    "}\n"
+                    "Koristi tačku kao decimalni separator. Vrati SAMO JSON, ništa drugo."
+                )},
+            ]}],
+        )
+        amounts_raw = amounts_response.choices[0].message.content.strip()
+        if amounts_raw.startswith("```"):
+            amounts_raw = amounts_raw.split("\n", 1)[1]
+            amounts_raw = amounts_raw.rsplit("```", 1)[0]
+        a_start = amounts_raw.find("{")
+        a_end = amounts_raw.rfind("}") + 1
+        if a_start >= 0 and a_end > a_start:
+            amounts_raw = amounts_raw[a_start:a_end]
+        try:
+            amounts = json.loads(amounts_raw)
+            for key in ["IZNAKFT", "IZNOSNOV", "IZNPDV"]:
+                if amounts.get(key):
+                    data[key] = str(amounts[key]).replace(",", ".")
+        except (json.JSONDecodeError, KeyError):
+            pass  # Ako parsiranje ne uspije, zadrži vrijednosti iz prvog poziva
 
     # Dopuni iz poznatih partnera
     full_text = (pdf_text + " " + json.dumps(data)).lower()
