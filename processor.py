@@ -495,6 +495,16 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
             "image_url": {"url": f"data:image/png;base64,{img}"},
         })
 
+    multipage_instruction = ""
+    if len(images) > 1:
+        multipage_instruction = (
+            f"\n\nPAŽNJA — VIŠESTRANIČNI RAČUN ({len(images)} stranica):\n"
+            "Ovo je JEDAN račun koji se proteže na više stranica.\n"
+            "IZNAKFT, IZNOSNOV i IZNPDV se nalaze na ZADNJOJ stranici u redu 'UKUPAN IZNOS ZA NAPLATU KM', "
+            "'Ukupno bez PDV-a' i 'Ukupno PDV 17%'.\n"
+            "OBAVEZNO koristi iznose sa ZADNJE stranice, NE sa prve!\n"
+        )
+
     ref_instruction = (
         "\n\nPOSEBNO VAŽNO — REF polje:\n"
         "Na papiru može biti RUČNO NAPISANO (hemijskom olovkom, rukom) 'REF:' i broj iza toga.\n"
@@ -509,10 +519,10 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
                     f"DOBAVLJAČ/IZDAVAČ je firma čiji je logo/zaglavlje (firma koja ŠALJE račun).\n"
                     f"KUPAC je firma na koju glasi račun (piše 'Korisnik:', 'Kupac:' ili slično).\n\n"
                     f"Za TAČNE brojeve koristi ovaj tekst iz PDF-a:\n\n"
-                    f"---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT}{ref_instruction}",
+                    f"---\n{pdf_text}\n---\n\n{EXTRACTION_PROMPT}{ref_instruction}{multipage_instruction}",
         })
     else:
-        content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}"})
+        content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}{multipage_instruction}"})
 
     response = _chat_completion_with_retry(
         client,
