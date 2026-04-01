@@ -378,6 +378,61 @@ def iter_pdf_pages(pdf_bytes):
         doc.close()
 
 
+def group_invoice_pages(pdf_bytes):
+    """Grupiše stranice PDF-a u fakture — spaja continuation stranice (Strana: 2, 3...) sa prethodnom."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    n = len(doc)
+
+    if n == 0:
+        doc.close()
+        return []
+
+    if n == 1:
+        result = [(1, pdf_bytes)]
+        doc.close()
+        return result
+
+    # Grupiši stranice: continuation stranice (Strana: 2, 3...) idu uz prethodnu
+    groups = [[0]]
+    for i in range(1, n):
+        text = doc[i].get_text()
+        is_continuation = bool(re.search(r'Strana:\s*[2-9]', text))
+        if is_continuation:
+            groups[-1].append(i)
+        else:
+            groups.append([i])
+
+    # Kreiraj spojeni PDF za svaku grupu
+    results = []
+    for group in groups:
+        merged = fitz.open()
+        for page_idx in group:
+            merged.insert_pdf(doc, from_page=page_idx, to_page=page_idx)
+        results.append((group[0] + 1, merged.tobytes()))
+        merged.close()
+
+    doc.close()
+    return results
+
+
+def count_invoice_groups(pdf_bytes):
+    """Vraća broj faktura u PDF-u (continuation stranice se ne broje kao zasebne)."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    if len(doc) <= 1:
+        n = len(doc)
+        doc.close()
+        return n
+
+    count = 1
+    for i in range(1, len(doc)):
+        text = doc[i].get_text()
+        if not re.search(r'Strana:\s*[2-9]', text):
+            count += 1
+
+    doc.close()
+    return count
+
+
 def extract_text_from_bytes(pdf_bytes):
     """Izvlači ugrađeni tekst iz PDF bajtova."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")

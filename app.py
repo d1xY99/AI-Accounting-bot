@@ -7,7 +7,7 @@ import xlwt
 import tempfile
 from pdf2image import convert_from_bytes
 from PIL import Image
-from processor import process_pdf, split_pdf_to_pages, count_pdf_pages, iter_pdf_pages, process_fiscal_pdf, process_kuf_pdf, KIF_HEADERS, KUF_HEADERS, DNEVNI_HEADERS
+from processor import process_pdf, split_pdf_to_pages, count_pdf_pages, iter_pdf_pages, group_invoice_pages, count_invoice_groups, process_fiscal_pdf, process_kuf_pdf, KIF_HEADERS, KUF_HEADERS, DNEVNI_HEADERS
 #
 def get_app_password():
     try:
@@ -272,11 +272,11 @@ elif st.session_state.page == "kif":
         st.session_state.labels = {}
         seen = set()
 
-        # Prebrojaj ukupno stranica bez čuvanja svih bajtova u memoriji
+        # Prebrojaj ukupno faktura (grupiše continuation stranice)
         total = 0
         for file in uploaded_files:
             pdf_bytes = file.read()
-            total += count_pdf_pages(pdf_bytes)
+            total += count_invoice_groups(pdf_bytes)
             file.seek(0)
 
         with top_left:
@@ -285,12 +285,13 @@ elif st.session_state.page == "kif":
                 i = 0
                 for file in uploaded_files:
                     pdf_bytes = file.read()
-                    file_pages = count_pdf_pages(pdf_bytes)
-                    for page_num, page_bytes in iter_pdf_pages(pdf_bytes):
-                        label = f"{file.name} (str. {page_num})" if file_pages > 1 else file.name
+                    invoices = group_invoice_pages(pdf_bytes)
+                    n_invoices = len(invoices)
+                    for page_num, invoice_bytes in invoices:
+                        label = f"{file.name} (str. {page_num})" if n_invoices > 1 else file.name
                         progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
                         try:
-                            data = process_pdf(page_bytes, filename=label, api_key=api_key)
+                            data = process_pdf(invoice_bytes, filename=label, api_key=api_key)
                             broj = data.get("BRDOKFAKT", "")
                             if broj and broj in seen:
                                 st.session_state.logs.append(("warn", f"{label} — duplikat računa {broj}"))
@@ -298,14 +299,14 @@ elif st.session_state.page == "kif":
                                 seen.add(broj)
                                 idx = len(st.session_state.results)
                                 st.session_state.results.append(data)
-                                st.session_state.pdf_map[idx] = page_bytes
+                                st.session_state.pdf_map[idx] = invoice_bytes
                                 st.session_state.labels[idx] = label
                                 st.session_state.logs.append(("ok", f"{label} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
                         except Exception as e:
                             st.session_state.logs.append(("err", f"{label} — {str(e)}"))
                         i += 1
                         progress.progress(i / total)
-                    del pdf_bytes
+                    del pdf_bytes, invoices
                 progress.progress(1.0, text=f"Gotovo! Obrađeno {len(st.session_state.results)} račun(a)")
 
     # Results
