@@ -581,6 +581,27 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     data["REDBR"] = int(redbr_match.group(1)) if redbr_match else 0
     data["TIPDOK"] = "01"
 
+    # ── Za višestranične račune: izvuci totale direktno iz PDF teksta (pouzdanije od AI) ──
+    if len(images) > 1 and pdf_text:
+        total_match = re.search(
+            r'UKUPAN\s+IZNOS\s+ZA\s+NAPLATU\s+KM\s+([\d.,]+)',
+            pdf_text, re.IGNORECASE,
+        )
+        bez_pdv_match = re.search(
+            r'Ukupno\s+bez\s+PDV-a[:\s]+([\d.,]+)',
+            pdf_text, re.IGNORECASE,
+        )
+        pdv_match = re.search(
+            r'Ukupno\s+PDV\s+17\s*%[:\s]+([\d.,]+)',
+            pdf_text, re.IGNORECASE,
+        )
+        if total_match:
+            data["IZNAKFT"] = total_match.group(1).replace(".", "").replace(",", ".")
+        if bez_pdv_match:
+            data["IZNOSNOV"] = bez_pdv_match.group(1).replace(".", "").replace(",", ".")
+        if pdv_match:
+            data["IZNPDV"] = pdv_match.group(1).replace(".", "").replace(",", ".")
+
     # Konvertuj brojeve u string sa tačkom kao separatorom
     for key in ["IZNAKFT", "IZNOSNOV", "IZNPDV"]:
         val = data.get(key, "")
