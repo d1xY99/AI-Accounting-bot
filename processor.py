@@ -444,6 +444,91 @@ def extract_text_from_bytes(pdf_bytes):
     return text.strip()
 
 
+def _page_to_base64(pdf_bytes, fmt="PNG", quality=80):
+    """Konvertuje single-page PDF u jednu base64 sliku."""
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp.write(pdf_bytes)
+        tmp_path = tmp.name
+    try:
+        pages = convert_from_path(tmp_path, dpi=150)
+        buffer = BytesIO()
+        if fmt == "JPEG":
+            pages[0].save(buffer, format="JPEG", quality=quality)
+        else:
+            pages[0].save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode("utf-8")
+    finally:
+        os.unlink(tmp_path)
+
+
+def prescan_invoice_number(page_bytes, api_key=None):
+    """Brzi AI poziv — izvlači samo broj računa sa jedne stranice. Koristi malo tokena."""
+    client = openai.OpenAI(api_key=api_key)
+    img = _page_to_base64(page_bytes, fmt="JPEG", quality=50)
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        temperature=0,
+        max_tokens=100,
+        messages=[{"role": "user", "content": [
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}},
+            {"type": "text", "text": (
+                "Pronađi broj računa/otpremnice na ovoj slici. "
+                "Traži tekst poput 'RAČUN - OTPREMNICA broj:' ili 'Račun broj:'. "
+                "Vrati SAMO broj (npr. '0490/2026'). Ništa drugo."
+            )},
+        ]}],
+    )
+    raw = response.choices[0].message.content.strip()
+    # Očisti — izvuci samo pattern koji liči na broj računa
+    m = re.search(r'(\d{3,6}/\d{4})', raw)
+    return m.group(1) if m else raw
+
+
+def group_pages_by_invoice(all_pages, api_key=None, progress_cb=None):
+    """Pre-skenira stranice i grupiše ih po broju računa.
+
+    Args:
+        all_pages: lista (page_num, page_bytes) tuple-ova
+        api_key: OpenAI API ključ
+        progress_cb: callback(i, total, label) za progress bar
+
+    Returns:
+        lista grupa: [(invoice_number, [(page_num, page_bytes), ...]), ...]
+    """
+    # Faza 1: pre-scan — izvuci broj računa sa svake stranice
+    page_invoices = []  # (invoice_number, page_num, page_bytes)
+    for i, (page_num, page_bytes) in enumerate(all_pages):
+        if progress_cb:
+            progress_cb(i, len(all_pages), f"Pre-scan str. {page_num}")
+        inv_num = prescan_invoice_number(page_bytes, api_key=api_key)
+        page_invoices.append((inv_num, page_num, page_bytes))
+
+    # Faza 2: grupiši po broju računa (čuvaj redosljed)
+    groups = []
+    seen_invoices = {}
+    for inv_num, page_num, page_bytes in page_invoices:
+        if inv_num in seen_invoices:
+            seen_invoices[inv_num].append((page_num, page_bytes))
+        else:
+            group = [(page_num, page_bytes)]
+            seen_invoices[inv_num] = group
+            groups.append((inv_num, group))
+
+    return groups
+
+
+def merge_pages_to_pdf(page_list):
+    """Spaja listu (page_num, page_bytes) u jedan PDF."""
+    merged = fitz.open()
+    for _, page_bytes in page_list:
+        doc = fitz.open(stream=page_bytes, filetype="pdf")
+        merged.insert_pdf(doc)
+        doc.close()
+    result = merged.tobytes()
+    merged.close()
+    return result
+
+
 def pdf_bytes_to_images_base64(pdf_bytes):
     """Konvertuje PDF bajtove u base64 slike. PNG za jednostraničke, JPEG za višestraničke."""
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:

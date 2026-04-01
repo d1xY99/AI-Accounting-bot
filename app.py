@@ -7,7 +7,7 @@ import xlwt
 import tempfile
 from pdf2image import convert_from_bytes
 from PIL import Image
-from processor import process_pdf, split_pdf_to_pages, count_pdf_pages, iter_pdf_pages, group_invoice_pages, count_invoice_groups, process_fiscal_pdf, process_kuf_pdf, KIF_HEADERS, KUF_HEADERS, DNEVNI_HEADERS
+from processor import process_pdf, split_pdf_to_pages, count_pdf_pages, iter_pdf_pages, group_pages_by_invoice, merge_pages_to_pdf, process_fiscal_pdf, process_kuf_pdf, KIF_HEADERS, KUF_HEADERS, DNEVNI_HEADERS
 #
 def get_app_password():
     try:
@@ -849,42 +849,64 @@ elif st.session_state.page == "herbavital":
         st.session_state.h_labels = {}
         seen = set()
 
-        # Prebrojaj fakture (grupiše continuation stranice Strana: 2, 3...)
-        total = 0
+        # Faza 1: razdvoji sve fajlove na stranice
+        all_pages = []  # (file_name, page_num, page_bytes)
         for file in uploaded_files_h:
             pdf_bytes = file.read()
-            total += count_invoice_groups(pdf_bytes)
-            file.seek(0)
+            for page_num, page_bytes in split_pdf_to_pages(pdf_bytes):
+                all_pages.append((file.name, page_num, page_bytes))
+            del pdf_bytes
+        total_pages = len(all_pages)
 
         with top_left:
-            with st.spinner("AI obrađuje Herbavital račune, molimo sačekajte..."):
-                progress = st.progress(0, text="Pokrećem obradu...")
-                i = 0
-                for file in uploaded_files_h:
-                    pdf_bytes = file.read()
-                    invoices = group_invoice_pages(pdf_bytes)
-                    n_invoices = len(invoices)
-                    for page_num, invoice_bytes in invoices:
-                        label = f"{file.name} (str. {page_num})" if n_invoices > 1 else file.name
-                        progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
-                        try:
-                            data = process_pdf(invoice_bytes, filename=label, api_key=api_key)
-                            broj = data.get("BRDOKFAKT", "")
-                            if broj and broj in seen:
-                                st.session_state.h_logs.append(("warn", f"{label} — duplikat računa {broj}"))
-                            else:
-                                seen.add(broj)
-                                idx = len(st.session_state.h_results)
-                                st.session_state.h_results.append(data)
-                                st.session_state.h_pdf_map[idx] = invoice_bytes
-                                st.session_state.h_labels[idx] = label
-                                st.session_state.h_logs.append(("ok", f"{label} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
-                        except Exception as e:
-                            st.session_state.h_logs.append(("err", f"{label} — {str(e)}"))
-                        i += 1
-                        progress.progress(i / total)
-                    del pdf_bytes, invoices
-                progress.progress(1.0, text=f"Gotovo! Obrađeno {len(st.session_state.h_results)} račun(a)")
+            with st.spinner("AI obrađuje Herbavital račune..."):
+                # Faza 2: pre-scan — izvuci broj računa sa svake stranice
+                progress = st.progress(0, text="Faza 1/2: Skeniram brojeve računa...")
+                page_list = [(pn, pb) for _, pn, pb in all_pages]
+                file_names = [fn for fn, _, _ in all_pages]
+
+                def prescan_progress(i, total, label):
+                    progress.progress(i / total / 2, text=f"Faza 1/2: {label} ({i+1}/{total})")
+
+                invoice_groups = group_pages_by_invoice(page_list, api_key=api_key, progress_cb=prescan_progress)
+                progress.progress(0.5, text=f"Faza 1/2 gotova! Pronađeno {len(invoice_groups)} računa u {total_pages} stranica")
+
+                # Faza 3: obradi svaku grupu (spojene stranice → jedan AI poziv)
+                total_invoices = len(invoice_groups)
+                for i, (inv_num, pages) in enumerate(invoice_groups):
+                    n_pages = len(pages)
+                    first_page = pages[0][0]
+                    # Nađi ime fajla za prvu stranicu ove grupe
+                    fname = file_names[0]
+                    for fi, (fn, pn, _) in enumerate(all_pages):
+                        if pn == first_page:
+                            fname = fn
+                            break
+                    label = f"{fname} (račun {inv_num}, {n_pages} str.)" if n_pages > 1 else f"{fname} (str. {first_page})"
+                    progress.progress(0.5 + (i / total_invoices) * 0.5, text=f"Faza 2/2: Obrađujem {i+1}/{total_invoices}: {label}")
+
+                    try:
+                        # Spoji stranice u jedan PDF ako ih ima više
+                        if n_pages > 1:
+                            invoice_bytes = merge_pages_to_pdf(pages)
+                        else:
+                            invoice_bytes = pages[0][1]
+
+                        data = process_pdf(invoice_bytes, filename=label, api_key=api_key)
+                        broj = data.get("BRDOKFAKT", "")
+                        if broj and broj in seen:
+                            st.session_state.h_logs.append(("warn", f"{label} — duplikat računa {broj}"))
+                        else:
+                            seen.add(broj)
+                            idx = len(st.session_state.h_results)
+                            st.session_state.h_results.append(data)
+                            st.session_state.h_pdf_map[idx] = invoice_bytes
+                            st.session_state.h_labels[idx] = label
+                            st.session_state.h_logs.append(("ok", f"{label} — {data.get('NAZIVPP','?')} — {data.get('IZNAKFT','?')} KM"))
+                    except Exception as e:
+                        st.session_state.h_logs.append(("err", f"{label} — {str(e)}"))
+
+                progress.progress(1.0, text=f"Gotovo! Obrađeno {len(st.session_state.h_results)} račun(a) iz {total_pages} stranica")
 
     if st.session_state.h_results:
         with top_left:
