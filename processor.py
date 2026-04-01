@@ -267,12 +267,13 @@ def process_kuf_pdf(pdf_bytes, filename="", api_key=None):
 
     content = []
     has_text = len(pdf_text) >= MIN_TEXT_LENGTH
-    images = pdf_bytes_to_images_base64(pdf_bytes)
+    images, is_multipage = pdf_bytes_to_images_base64(pdf_bytes)
+    mime = "image/jpeg" if is_multipage else "image/png"
 
     for img in images:
         content.append({
             "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{img}"},
+            "image_url": {"url": f"data:{mime};base64,{img}"},
         })
 
     if has_text:
@@ -444,20 +445,27 @@ def extract_text_from_bytes(pdf_bytes):
 
 
 def pdf_bytes_to_images_base64(pdf_bytes):
-    """Konvertuje PDF bajtove u base64 slike."""
+    """Konvertuje PDF bajtove u base64 slike. PNG za jednostraničke, JPEG za višestraničke."""
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(pdf_bytes)
         tmp_path = tmp.name
 
     try:
         pages = convert_from_path(tmp_path, dpi=150)
+        is_multipage = len(pages) > 1
         images = []
-        for page in pages:
+        for i, page in enumerate(pages):
             buffer = BytesIO()
-            page.save(buffer, format="PNG")
+            if is_multipage:
+                # Višestranični (Herbavital) → JPEG za manji payload
+                quality = 60 if i > 0 else 80
+                page.save(buffer, format="JPEG", quality=quality)
+            else:
+                # Jednostranični → PNG (originalni kvalitet)
+                page.save(buffer, format="PNG")
             img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
             images.append(img_base64)
-        return images
+        return images, is_multipage
     finally:
         os.unlink(tmp_path)
 
@@ -488,11 +496,12 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     has_text = len(pdf_text) >= MIN_TEXT_LENGTH
 
     # UVIJEK šalji sliku — OCR tekst je često pokvarjen i AI treba vidjeti raspored
-    images = pdf_bytes_to_images_base64(pdf_bytes)
+    images, is_multipage = pdf_bytes_to_images_base64(pdf_bytes)
+    mime = "image/jpeg" if is_multipage else "image/png"
     for img in images:
         content.append({
             "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{img}"},
+            "image_url": {"url": f"data:{mime};base64,{img}"},
         })
 
     multipage_instruction = ""
@@ -756,13 +765,14 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
     client = openai.OpenAI(api_key=api_key)
 
     pdf_text = extract_text_from_bytes(pdf_bytes)
-    images = pdf_bytes_to_images_base64(pdf_bytes)
+    images, is_multipage = pdf_bytes_to_images_base64(pdf_bytes)
+    mime = "image/jpeg" if is_multipage else "image/png"
 
     content = []
     for img in images:
         content.append({
             "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{img}"},
+            "image_url": {"url": f"data:{mime};base64,{img}"},
         })
 
     has_text = len(pdf_text) >= MIN_TEXT_LENGTH
