@@ -151,9 +151,9 @@ Ključevi MORAJU biti TAČNO ovi (ostavi prazan string "" ako ne postoji):
   "SJEDISTEPP": "Puna adresa kupca sa poštanskim brojem i mjestom",
   "IDDVPP": "ID broj (JIB) kupca - MORA biti TAČNO 13 cifara i počinjati sa 4. Ako na računu vidiš broj koji nema 13 cifara ili ne počinje sa 4, dodaj vodeću 4 da bude 13 cifara",
   "JIBPUPP": "PDV broj kupca - MORA biti TAČNO 12 cifara. To je isti broj kao ID/JIB ali BEZ vodeće cifre 4. Ako kupac NIJE u PDV sistemu (nema PDV broj na računu), ostavi prazan string",
-  "IZNOSNOV": "Iznos BEZ PDV-a (decimalni separator tačka, npr. 155.87)",
-  "IZNPDV": "Iznos PDV-a u KM (NE procenat, nego koliko PDV iznosi u novcu, npr. 26.50)",
-  "IZNAKFT": "UKUPAN iznos za uplatu SA PDV-om (npr. 182.37)",
+  "IZNOSNOV": "Iznos BEZ PDV-a — traži red 'Ukupno bez PDV-a' (POSLIJE rabata/popusta). PAŽNJA: ako na računu postoji i 'Ukupno bez rabata i PDV-a' to je iznos PRIJE popusta — NE koristi taj! Koristi MANJI broj koji piše kod 'Ukupno bez PDV-a'. Decimalni separator tačka, npr. 155.87",
+  "IZNPDV": "Iznos PDV-a u KM — traži red 'Ukupno PDV 17%'. NE procenat, nego koliko PDV iznosi u novcu, npr. 26.50",
+  "IZNAKFT": "UKUPAN iznos za uplatu SA PDV-om — traži red 'UKUPAN IZNOS ZA NAPLATU KM' (npr. 182.37)",
   "REF": "PAŽLJIVO PREGLEDAJ CIJELU SLIKU za RUČNO NAPISAN (rukom pisan, hemijskom olovkom) tekst 'REF:' ili 'Ref:' ili 'ref:'. Može biti na BILO KOJEM dijelu papira — na margini, pri vrhu, pri dnu, na poleđini, preko teksta fakture. Iza 'REF:' slijedi iznos (broj). Upiši SAMO taj broj. Npr. ako rukom piše 'REF: 250.00' upiši '250.00'. Ako rukom piše 'REF: 1500' upiši '1500'. Rukopis može biti neuredan! Ako NEMA ručno napisanog 'REF:' teksta, ostavi prazan string ''",
   "OSL": "Provjeri da li na računu postoji tekst o oslobađanju PDV-a. Traži tekst koji sadrži 'oslobođene PDV-a po čl.' ili 'oslobodjene PDV-a po cl.' ili slično. Ako se pominje član 15 ili član 27, upiši '1'. Ako se pominje član 26, upiši '2'. Ako nema takvog teksta, upiši '0'",
   "NAZIV_IZDAVACA": "Naziv firme koja IZDAJE račun (čiji je logo/zaglavlje). Ovo je DOBAVLJAČ, NE kupac!",
@@ -171,6 +171,7 @@ VAŽNO:
 - ID broj (JIB) = 13 cifara, počinje sa 4
 - PDV broj = 12 cifara, isti kao JIB bez vodeće 4 (samo firme u PDV sistemu)
 - IZNPDV je iznos u KM, NE procenat
+- RABAT/POPUST: Ako račun ima rabat, na dnu postoje redovi: 'Ukupno bez rabata i PDV-a' (VEĆI broj, PRIJE popusta) i 'Ukupno bez PDV-a' (MANJI broj, POSLIJE popusta). Za IZNOSNOV UVIJEK koristi 'Ukupno bez PDV-a' (POSLIJE popusta, MANJI broj)!
 - Brojeve prepiši TAČNO
 - REF: OBAVEZNO pregledaj CIJELU sliku za RUČNO NAPISAN tekst "REF:" (hemijskom olovkom, rukom). Može biti BILO GDJE na papiru — margine, vrh, dno, dijagonalno, preko teksta. Rukopis može biti neuredan. Upiši SAMO broj iza "REF:". Ako nema ručno napisanog REF, ostavi prazan string
 - OSL: Traži tekst "oslobođene/oslobodjene PDV-a po čl. 15/26/27" — čl. 15 ili 27 = "1", čl. 26 = "2", nema = "0"
