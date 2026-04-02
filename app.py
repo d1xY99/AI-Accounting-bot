@@ -515,7 +515,7 @@ elif st.session_state.page == "dnevni":
 
             def create_xls_d(dataframe):
                 wb = xlwt.Workbook(encoding="utf-8")
-                ws = wb.add_sheet("DnevniPrihod")
+                ws = wb.add_sheet("dp")
                 for c, h in enumerate(DNEVNI_HEADERS):
                     ws.write(0, c, h)
                 for r, row in dataframe.iterrows():
