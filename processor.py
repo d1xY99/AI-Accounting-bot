@@ -531,14 +531,14 @@ def merge_pages_to_pdf(page_list):
     return result
 
 
-def pdf_bytes_to_images_base64(pdf_bytes):
+def pdf_bytes_to_images_base64(pdf_bytes, dpi=150):
     """Konvertuje PDF bajtove u base64 slike. PNG za jednostraničke, JPEG za višestraničke."""
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(pdf_bytes)
         tmp_path = tmp.name
 
     try:
-        pages = convert_from_path(tmp_path, dpi=150)
+        pages = convert_from_path(tmp_path, dpi=dpi)
         is_multipage = len(pages) > 1
         images = []
         for i, page in enumerate(pages):
@@ -910,8 +910,8 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
     client = openai.OpenAI(api_key=api_key)
 
     pdf_text = extract_text_from_bytes(pdf_bytes)
-    images, is_multipage = pdf_bytes_to_images_base64(pdf_bytes)
-    mime = "image/jpeg" if is_multipage else "image/png"
+    images, is_multipage = pdf_bytes_to_images_base64(pdf_bytes, dpi=300)
+    mime = "image/png"
 
     content = []
     for img in images:
