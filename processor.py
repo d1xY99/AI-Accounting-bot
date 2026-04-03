@@ -189,7 +189,7 @@ Za SVAKI račun koji pronađeš, izvuci ova polja:
 
 {
   "DATUMDOK": "Datum dokumenta - nalazi se u vrhu računa, obično ispod 'PRESJEK STANJA' (format DD.MM.GGGG)",
-  "BROJKIFA": "PAŽLJIVO TRAŽI red koji počinje sa 'DI:' na desnoj strani računa, ispod 'PRESJEK STANJA'. Format je 'DI: 619 / 2000' ili 'DI: 1532 / 2000'. Upiši SAMO prvi broj PRIJE kose crte (/). Npr. 'DI: 619 / 2000' → upiši '619'. 'DI: 1532 / 2000' → upiši '1532'. Ako ne pronađeš 'DI:', ostavi prazan string.",
+  "BROJKIFA": "TRAŽI red 'DI:' (Dnevni Izvještaj) — NE 'BF:' i NE 'RF:'! Na računu postoje 4 reda: BF (sa crticom -), RF (sa crticom -), DI (sa kosom crtom /), BNR. Ti trebaš SAMO red sa 'DI:' koji ima KOSU CRTU (/). Npr. 'DI: 619 / 2000' → upiši '619'. 'DI: 623 / 2000' → upiši '623'. NIKAD ne čitaj broj iz BF: reda!",
   "SADRZAJ": "",
   "GOTOVINA": "Iznos pored 'GOTOVINA:' ili 'GOTOVINAR:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Pažljivo pročitaj svaku cifru! Npr. 75,28 ili 150,89 ili 0,00. Decimalni separator ZAREZ.",
   "KARTICNO": "Iznos pored 'KARTICA:' ili 'KARTICR:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Pažljivo pročitaj svaku cifru! Npr. 400,46 ili 270,98 ili 0,00. Decimalni separator ZAREZ.",
@@ -199,7 +199,7 @@ Za SVAKI račun koji pronađeš, izvuci ova polja:
 VAŽNO:
 - Vrati JSON NIZ (array) sa jednim objektom za svaki pronađeni račun
 - Ako ima 3 računa na slici, vrati niz od 3 objekta
-- BROJKIFA: OBAVEZNO pronađi 'DI:' na desnoj strani računa (ispod datuma PRESJEK STANJA). Piše npr. 'DI: 619 / 2000'. Upiši SAMO broj prije '/' — dakle '619'. NE upisuj '/ 2000' dio! Ako ne vidiš 'DI:', upiši prazan string.
+- BROJKIFA: PAŽNJA! Na računu su 4 reda: BF (sa crticom), RF (sa crticom), DI (sa kosom crtom /), BNR. Trebaš SAMO 'DI:' red! BF: 1990 - 1992 je POGREŠAN red. DI: 620 / 2000 je TAČAN red. Upiši SAMO broj prije '/' iz DI reda.
 - Koristi zarez kao decimalni separator (npr. 75,28)
 - DATUM: Pažljivo pročitaj GODINU! Trenutna godina je 2025 ili 2026. NE čitaj 2026 kao 2020! Ako vidiš "2026" to JE 2026, NE 2020. Format: DD.MM.GGGG (bez vremena)
 - Ako je vrijednost 0.00 ili 0,00, upiši "0,00"
@@ -966,13 +966,25 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
         di_num = di_match.group(1) if di_match else ""
         data["BROJKIFA"] = di_num
         data["SADRZAJ"] = f"DI-{di_num}" if di_num else ""
-        # Konvertuj brojeve u string sa zarezom
+        # Konvertuj brojeve u string sa zarezom (decimalni separator)
         for key in ["GOTOVINA", "KARTICNO", "DEPOZIT"]:
             val = data.get(key, "")
             if isinstance(val, (int, float)):
                 data[key] = f"{val:.2f}".replace(".", ",")
             elif isinstance(val, str) and val:
-                data[key] = val.replace(".", ",")
+                # Očisti hiljadarke: "5,062,00" ili "5.062,00" → "5062,00"
+                val = val.strip()
+                # Ako ima više zareza (npr. "5,062,00"), zadnji je decimalni
+                if val.count(",") > 1:
+                    parts = val.rsplit(",", 1)
+                    val = parts[0].replace(",", "") + "," + parts[1]
+                # Ako ima tačku kao hiljadarku (npr. "5.062,00")
+                if "," in val and "." in val:
+                    val = val.replace(".", "")
+                # Ako nema zareza, zamijeni tačku
+                elif "." in val and "," not in val:
+                    val = val.replace(".", ",")
+                data[key] = val
         results.append(data)
 
     return results
