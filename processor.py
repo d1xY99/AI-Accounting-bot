@@ -189,7 +189,7 @@ Za SVAKI račun koji pronađeš, izvuci ova polja:
 
 {
   "DATUMDOK": "Datum dokumenta - nalazi se u vrhu računa, obično ispod 'PRESJEK STANJA' (format DD.MM.GGGG)",
-  "BROJKIFA": "TRAŽI red 'DI:' (Dnevni Izvještaj) — NE 'BF:' i NE 'RF:'! Na računu postoje 4 reda: BF (sa crticom -), RF (sa crticom -), DI (sa kosom crtom /), BNR. Ti trebaš SAMO red sa 'DI:' koji ima KOSU CRTU (/). Npr. 'DI: 619 / 2000' → upiši '619'. 'DI: 623 / 2000' → upiši '623'. NIKAD ne čitaj broj iz BF: reda!",
+  "BROJKIFA": "TRAŽI red koji sadrži '/ 2000' na desnoj strani računa. To je UVIJEK DI red. Format: 'DI: 619 / 2000'. Upiši SAMO broj PRIJE '/ 2000'. Npr. ako vidiš '619 / 2000' upiši '619'. Ako vidiš '623 / 2000' upiši '623'. KLJUČ: traži '/ 2000' — to je jedini red koji ima tu oznaku. BF red ima crticu (-), ne kosu crtu (/). NIKAD ne čitaj iz BF reda!",
   "SADRZAJ": "",
   "GOTOVINA": "Iznos pored 'GOTOVINA:' ili 'GOTOVINAR:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Pažljivo pročitaj svaku cifru! Npr. 75,28 ili 150,89 ili 0,00. Decimalni separator ZAREZ.",
   "KARTICNO": "Iznos pored 'KARTICA:' ili 'KARTICR:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Pažljivo pročitaj svaku cifru! Npr. 400,46 ili 270,98 ili 0,00. Decimalni separator ZAREZ.",
@@ -199,7 +199,7 @@ Za SVAKI račun koji pronađeš, izvuci ova polja:
 VAŽNO:
 - Vrati JSON NIZ (array) sa jednim objektom za svaki pronađeni račun
 - Ako ima 3 računa na slici, vrati niz od 3 objekta
-- BROJKIFA: PAŽNJA! Na računu su 4 reda: BF (sa crticom), RF (sa crticom), DI (sa kosom crtom /), BNR. Trebaš SAMO 'DI:' red! BF: 1990 - 1992 je POGREŠAN red. DI: 620 / 2000 je TAČAN red. Upiši SAMO broj prije '/' iz DI reda.
+- BROJKIFA: Traži '/ 2000' na desnoj strani — to je DI red. Npr. '619 / 2000' → upiši 619. NE čitaj BF red (ima crticu -, ne kosu crtu /). DI broj je obično 3-cifreni broj (600-999).
 - Koristi zarez kao decimalni separator (npr. 75,28)
 - DATUM: Pažljivo pročitaj GODINU! Trenutna godina je 2025 ili 2026. NE čitaj 2026 kao 2020! Ako vidiš "2026" to JE 2026, NE 2020. Format: DD.MM.GGGG (bez vremena)
 - Ako je vrijednost 0.00 ili 0,00, upiši "0,00"
