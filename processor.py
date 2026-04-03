@@ -189,7 +189,7 @@ Za SVAKI račun koji pronađeš, izvuci ova polja:
 
 {
   "DATUMDOK": "Datum dokumenta - nalazi se u vrhu računa, obično ispod 'PRESJEK STANJA' (format DD.MM.GGGG)",
-  "BROJKIFA": "Pronađi broj pored 'DI:' na računu. Npr. ako piše 'DI: 1532 / 2000', upiši '1532'. Ako piše 'DI: 1524 / 2000', upiši '1524'. SAMO prvi broj, bez '/ 2000' dijela!",
+  "BROJKIFA": "PAŽLJIVO TRAŽI red koji počinje sa 'DI:' na desnoj strani računa, ispod 'PRESJEK STANJA'. Format je 'DI: 619 / 2000' ili 'DI: 1532 / 2000'. Upiši SAMO prvi broj PRIJE kose crte (/). Npr. 'DI: 619 / 2000' → upiši '619'. 'DI: 1532 / 2000' → upiši '1532'. Ako ne pronađeš 'DI:', ostavi prazan string.",
   "SADRZAJ": "",
   "GOTOVINA": "Iznos pored 'GOTOVINA:' ili 'GOTOVINAR:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Pažljivo pročitaj svaku cifru! Npr. 75,28 ili 150,89 ili 0,00. Decimalni separator ZAREZ.",
   "KARTICNO": "Iznos pored 'KARTICA:' ili 'KARTICR:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Pažljivo pročitaj svaku cifru! Npr. 400,46 ili 270,98 ili 0,00. Decimalni separator ZAREZ.",
@@ -199,7 +199,7 @@ Za SVAKI račun koji pronađeš, izvuci ova polja:
 VAŽNO:
 - Vrati JSON NIZ (array) sa jednim objektom za svaki pronađeni račun
 - Ako ima 3 računa na slici, vrati niz od 3 objekta
-- BROJKIFA: broj iz polja DI na računu (samo cifre, bez teksta 'DI:' i bez '/ 2000')
+- BROJKIFA: OBAVEZNO pronađi 'DI:' na desnoj strani računa (ispod datuma PRESJEK STANJA). Piše npr. 'DI: 619 / 2000'. Upiši SAMO broj prije '/' — dakle '619'. NE upisuj '/ 2000' dio! Ako ne vidiš 'DI:', upiši prazan string.
 - Koristi zarez kao decimalni separator (npr. 75,28)
 - DATUM: Pažljivo pročitaj GODINU! Trenutna godina je 2025 ili 2026. NE čitaj 2026 kao 2020! Ako vidiš "2026" to JE 2026, NE 2020. Format: DD.MM.GGGG (bez vremena)
 - Ako je vrijednost 0.00 ili 0,00, upiši "0,00"
@@ -957,11 +957,13 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
     for data in items:
         # BROJKIFA = DI broj, SADRZAJ = "DI-" + taj broj
         di_num = str(data.get("BROJKIFA", "")).strip()
-        # Očisti ako je AI vratio "DI: 1532" umjesto "1532"
+        # Očisti ako je AI vratio "DI: 619 / 2000" ili "DI: 619" umjesto "619"
         di_num = re.sub(r'^[Dd][Ii][:\s-]*', '', di_num).strip()
-        # Izvuci samo cifre ako ima viška
+        # Ukloni "/ 2000" dio ako postoji
+        di_num = di_num.split("/")[0].strip()
+        # Izvuci samo cifre
         di_match = re.match(r'(\d+)', di_num)
-        di_num = di_match.group(1) if di_match else di_num
+        di_num = di_match.group(1) if di_match else ""
         data["BROJKIFA"] = di_num
         data["SADRZAJ"] = f"DI-{di_num}" if di_num else ""
         # Konvertuj brojeve u string sa zarezom
