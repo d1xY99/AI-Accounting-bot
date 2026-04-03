@@ -189,8 +189,9 @@ Za SVAKI račun koji pronađeš, izvuci ova polja:
 
 {
   "DATUMDOK": "Datum dokumenta - nalazi se u vrhu računa, obično ispod 'PRESJEK STANJA' (format DD.MM.GGGG)",
-  "BROJKIFA": "TRAŽI red koji sadrži '/ 2000' na desnoj strani računa. To je UVIJEK DI red. Format: 'DI: 619 / 2000'. Upiši SAMO broj PRIJE '/ 2000'. Npr. ako vidiš '619 / 2000' upiši '619'. Ako vidiš '623 / 2000' upiši '623'. KLJUČ: traži '/ 2000' — to je jedini red koji ima tu oznaku. BF red ima crticu (-), ne kosu crtu (/). NIKAD ne čitaj iz BF reda!",
+  "BROJKIFA": "",
   "SADRZAJ": "",
+  "PRESCAN_LINES": "Prepiši TAČNO 4 reda koja se nalaze ODMAH ISPOD datuma 'PRESJEK STANJA'. Piši SVAKI red TAČNO kako ga vidiš na računu, red po red. Primjer: 'BF: 1983 - 1989\\nRF: 0 - 0\\nDI: 619 / 2000\\nBNR: 7 / 7'. OBAVEZNO uključi SVIH 4 reda!",
   "GOTOVINA": "Iznos pored 'GOTOVINA:' ili 'GOTOVINAR:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Pažljivo pročitaj svaku cifru! Npr. 75,28 ili 150,89 ili 0,00. Decimalni separator ZAREZ.",
   "KARTICNO": "Iznos pored 'KARTICA:' ili 'KARTICR:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Pažljivo pročitaj svaku cifru! Npr. 400,46 ili 270,98 ili 0,00. Decimalni separator ZAREZ.",
   "DEPOZIT": "Iznos pored 'DEPOZIT:' — traži u sekciji 'STANJE U KASI:' pri dnu računa. Ako ne postoji, prazan string"
@@ -199,7 +200,7 @@ Za SVAKI račun koji pronađeš, izvuci ova polja:
 VAŽNO:
 - Vrati JSON NIZ (array) sa jednim objektom za svaki pronađeni račun
 - Ako ima 3 računa na slici, vrati niz od 3 objekta
-- BROJKIFA: Traži '/ 2000' na desnoj strani — to je DI red. Npr. '619 / 2000' → upiši 619. NE čitaj BF red (ima crticu -, ne kosu crtu /). DI broj je obično 3-cifreni broj (600-999).
+- PRESCAN_LINES: prepiši TAČNO sva 4 reda ispod datuma PRESJEK STANJA (BF, RF, DI, BNR). Razdvoji ih sa \\n.
 - Koristi zarez kao decimalni separator (npr. 75,28)
 - DATUM: Pažljivo pročitaj GODINU! Trenutna godina je 2025 ili 2026. NE čitaj 2026 kao 2020! Ako vidiš "2026" to JE 2026, NE 2020. Format: DD.MM.GGGG (bez vremena)
 - Ako je vrijednost 0.00 ili 0,00, upiši "0,00"
@@ -955,17 +956,31 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
 
     results = []
     for data in items:
-        # BROJKIFA = DI broj, SADRZAJ = "DI-" + taj broj
-        di_num = str(data.get("BROJKIFA", "")).strip()
-        # Očisti ako je AI vratio "DI: 619 / 2000" ili "DI: 619" umjesto "619"
-        di_num = re.sub(r'^[Dd][Ii][:\s-]*', '', di_num).strip()
-        # Ukloni "/ 2000" dio ako postoji
-        di_num = di_num.split("/")[0].strip()
-        # Izvuci samo cifre
-        di_match = re.match(r'(\d+)', di_num)
-        di_num = di_match.group(1) if di_match else ""
+        # ── Izvuci DI broj iz PRESCAN_LINES teksta (pouzdanije od direktnog AI čitanja) ──
+        di_num = ""
+        prescan = str(data.get("PRESCAN_LINES", "")).strip()
+        if prescan:
+            # Traži pattern: DI: BROJ / BROJ ili samo BROJ / 2000
+            di_match = re.search(r'[Dd][Ii][:\s]+(\d+)\s*/\s*\d+', prescan)
+            if di_match:
+                di_num = di_match.group(1)
+            else:
+                # Fallback: traži bilo koji "BROJ / 2000" pattern
+                slash_match = re.search(r'(\d+)\s*/\s*2000', prescan)
+                if slash_match:
+                    di_num = slash_match.group(1)
+
+        # Ako PRESCAN nije dao rezultat, probaj iz BROJKIFA
+        if not di_num:
+            raw_kifa = str(data.get("BROJKIFA", "")).strip()
+            raw_kifa = re.sub(r'^[Dd][Ii][:\s-]*', '', raw_kifa).strip()
+            raw_kifa = raw_kifa.split("/")[0].strip()
+            kifa_match = re.match(r'(\d+)', raw_kifa)
+            di_num = kifa_match.group(1) if kifa_match else ""
+
         data["BROJKIFA"] = di_num
         data["SADRZAJ"] = f"DI-{di_num}" if di_num else ""
+        data.pop("PRESCAN_LINES", None)  # Ukloni pomoćno polje
         # Konvertuj brojeve u string sa zarezom (decimalni separator)
         for key in ["GOTOVINA", "KARTICNO", "DEPOZIT"]:
             val = data.get(key, "")
