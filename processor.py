@@ -296,7 +296,7 @@ def _ai_call(content_parts, api_key, provider="openai", max_tokens=2000):
         for attempt in range(5):
             try:
                 response = client.messages.create(
-                    model="claude-sonnet-4-6-20250514",
+                    model="claude-sonnet-4-6",
                     max_tokens=max_tokens,
                     messages=[{"role": "user", "content": claude_content}],
                 )
