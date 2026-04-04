@@ -1,4 +1,5 @@
 import openai
+import anthropic
 import base64
 import json
 import random
@@ -254,17 +255,76 @@ def _chat_completion_with_retry(client, max_retries=5, **kwargs):
     for attempt in range(max_retries):
         try:
             return client.chat.completions.create(**kwargs)
-        except openai.RateLimitError as e:
+        except openai.RateLimitError:
             if attempt == max_retries - 1:
                 raise
             wait = min(2 ** attempt, 30)
             time.sleep(wait)
 
 
-def process_kuf_pdf(pdf_bytes, filename="", api_key=None):
-    """Obrađuje PDF ulazne fakture i vraća dict sa KUF podacima."""
-    client = openai.OpenAI(api_key=api_key)
+def _ai_call(content_parts, api_key, provider="openai", max_tokens=2000):
+    """Unified AI poziv — radi sa OpenAI i Claude Sonnet 4.6.
 
+    Args:
+        content_parts: lista OpenAI-format content dijelova
+        api_key: API ključ za odabrani provider
+        provider: "openai" ili "claude"
+        max_tokens: max output tokena
+    Returns:
+        str: response text
+    """
+    if provider == "claude":
+        client = anthropic.Anthropic(api_key=api_key)
+        # Konvertuj OpenAI content format u Anthropic format
+        claude_content = []
+        for part in content_parts:
+            if part["type"] == "image_url":
+                url = part["image_url"]["url"]
+                header, b64data = url.split(",", 1)
+                media_type = header.split(":")[1].split(";")[0]
+                claude_content.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": b64data,
+                    },
+                })
+            elif part["type"] == "text":
+                claude_content.append({"type": "text", "text": part["text"]})
+
+        for attempt in range(5):
+            try:
+                response = client.messages.create(
+                    model="claude-sonnet-4-6-20250514",
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": claude_content}],
+                )
+                return response.content[0].text
+            except anthropic.RateLimitError:
+                if attempt == 4:
+                    raise
+                time.sleep(min(2 ** attempt, 30))
+    else:
+        # OpenAI
+        client = openai.OpenAI(api_key=api_key)
+        for attempt in range(5):
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    temperature=0,
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": content_parts}],
+                )
+                return response.choices[0].message.content.strip()
+            except openai.RateLimitError:
+                if attempt == 4:
+                    raise
+                time.sleep(min(2 ** attempt, 30))
+
+
+def process_kuf_pdf(pdf_bytes, filename="", api_key=None, provider="openai"):
+    """Obrađuje PDF ulazne fakture i vraća dict sa KUF podacima."""
     pdf_text = extract_text_from_bytes(pdf_bytes)
 
     content = []
@@ -290,15 +350,7 @@ def process_kuf_pdf(pdf_bytes, filename="", api_key=None):
     else:
         content.append({"type": "text", "text": KUF_EXTRACTION_PROMPT})
 
-    response = _chat_completion_with_retry(
-        client,
-        model="gpt-4o",
-        temperature=0,
-        max_tokens=2000,
-        messages=[{"role": "user", "content": content}],
-    )
-
-    raw = response.choices[0].message.content.strip()
+    raw = _ai_call(content, api_key, provider=provider, max_tokens=2000)
 
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1]
@@ -463,35 +515,30 @@ def _page_to_base64(pdf_bytes, fmt="PNG", quality=80):
         os.unlink(tmp_path)
 
 
-def prescan_invoice_number(page_bytes, api_key=None):
+def prescan_invoice_number(page_bytes, api_key=None, provider="openai"):
     """Brzi AI poziv — izvlači samo broj računa sa jedne stranice. Koristi malo tokena."""
-    client = openai.OpenAI(api_key=api_key)
     img = _page_to_base64(page_bytes, fmt="JPEG", quality=50)
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        temperature=0,
-        max_tokens=100,
-        messages=[{"role": "user", "content": [
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}},
-            {"type": "text", "text": (
-                "Pronađi broj računa/otpremnice na ovoj slici. "
-                "Traži tekst poput 'RAČUN - OTPREMNICA broj:' ili 'Račun broj:'. "
-                "Vrati SAMO broj (npr. '0490/2026'). Ništa drugo."
-            )},
-        ]}],
-    )
-    raw = response.choices[0].message.content.strip()
+    content = [
+        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}},
+        {"type": "text", "text": (
+            "Pronađi broj računa/otpremnice na ovoj slici. "
+            "Traži tekst poput 'RAČUN - OTPREMNICA broj:' ili 'Račun broj:'. "
+            "Vrati SAMO broj (npr. '0490/2026'). Ništa drugo."
+        )},
+    ]
+    raw = _ai_call(content, api_key, provider=provider, max_tokens=100)
     # Očisti — izvuci samo pattern koji liči na broj računa
     m = re.search(r'(\d{3,6}/\d{4})', raw)
     return m.group(1) if m else raw
 
 
-def group_pages_by_invoice(all_pages, api_key=None, progress_cb=None):
+def group_pages_by_invoice(all_pages, api_key=None, provider="openai", progress_cb=None):
     """Pre-skenira stranice i grupiše ih po broju računa.
 
     Args:
         all_pages: lista (page_num, page_bytes) tuple-ova
-        api_key: OpenAI API ključ
+        api_key: API ključ
+        provider: "openai" ili "claude"
         progress_cb: callback(i, total, label) za progress bar
 
     Returns:
@@ -502,7 +549,7 @@ def group_pages_by_invoice(all_pages, api_key=None, progress_cb=None):
     for i, (page_num, page_bytes) in enumerate(all_pages):
         if progress_cb:
             progress_cb(i, len(all_pages), f"Pre-scan str. {page_num}")
-        inv_num = prescan_invoice_number(page_bytes, api_key=api_key)
+        inv_num = prescan_invoice_number(page_bytes, api_key=api_key, provider=provider)
         page_invoices.append((inv_num, page_num, page_bytes))
 
     # Faza 2: grupiši po broju računa (čuvaj redosljed)
@@ -573,9 +620,8 @@ def validate_id_pdv(data):
     return data
 
 
-def process_pdf(pdf_bytes, filename="", api_key=None):
+def process_pdf(pdf_bytes, filename="", api_key=None, provider="openai"):
     """Obrađuje PDF i vraća dict sa KIF podacima."""
-    client = openai.OpenAI(api_key=api_key)
 
     pdf_text = extract_text_from_bytes(pdf_bytes)
 
@@ -619,15 +665,7 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     else:
         content.append({"type": "text", "text": f"{EXTRACTION_PROMPT}{ref_instruction}"})
 
-    response = _chat_completion_with_retry(
-        client,
-        model="gpt-4o",
-        temperature=0,
-        max_tokens=2000,
-        messages=[{"role": "user", "content": content}],
-    )
-
-    raw = response.choices[0].message.content.strip()
+    raw = _ai_call(content, api_key, provider=provider, max_tokens=2000)
 
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1]
@@ -643,26 +681,20 @@ def process_pdf(pdf_bytes, filename="", api_key=None):
     # ── Za višestranične: drugi AI poziv — izvuci iznose sa ZADNJE stranice ──
     if is_multipage and len(images) > 1:
         last_img = images[-1]
-        amounts_response = _chat_completion_with_retry(
-            client,
-            model="gpt-4o",
-            temperature=0,
-            max_tokens=200,
-            messages=[{"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{last_img}"}},
-                {"type": "text", "text": (
-                    "Ovo je ZADNJA stranica računa. Na dnu se nalaze ukupni iznosi.\n"
-                    "Pronađi i vrati SAMO ova 3 broja kao JSON:\n"
-                    "{\n"
-                    '  "IZNAKFT": "UKUPAN IZNOS ZA NAPLATU KM (npr. 437.53)",\n'
-                    '  "IZNOSNOV": "Ukupno bez PDV-a (npr. 373.96)",\n'
-                    '  "IZNPDV": "Ukupno PDV 17% (npr. 63.57)"\n'
-                    "}\n"
-                    "Koristi tačku kao decimalni separator. Vrati SAMO JSON, ništa drugo."
-                )},
-            ]}],
-        )
-        amounts_raw = amounts_response.choices[0].message.content.strip()
+        amounts_content = [
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{last_img}"}},
+            {"type": "text", "text": (
+                "Ovo je ZADNJA stranica računa. Na dnu se nalaze ukupni iznosi.\n"
+                "Pronađi i vrati SAMO ova 3 broja kao JSON:\n"
+                "{\n"
+                '  "IZNAKFT": "UKUPAN IZNOS ZA NAPLATU KM (npr. 437.53)",\n'
+                '  "IZNOSNOV": "Ukupno bez PDV-a — ako ima rabat, koristi MANJI broj POSLIJE popusta (npr. 373.96)",\n'
+                '  "IZNPDV": "Ukupno PDV 17% (npr. 63.57)"\n'
+                "}\n"
+                "Koristi tačku kao decimalni separator. Vrati SAMO JSON, ništa drugo."
+            )},
+        ]
+        amounts_raw = _ai_call(amounts_content, api_key, provider=provider, max_tokens=200)
         if amounts_raw.startswith("```"):
             amounts_raw = amounts_raw.split("\n", 1)[1]
             amounts_raw = amounts_raw.rsplit("```", 1)[0]
@@ -905,10 +937,8 @@ def process_multi_page_pdf(pdf_bytes, filename="", api_key=None):
     return results
 
 
-def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
+def process_fiscal_pdf(pdf_bytes, filename="", api_key=None, provider="openai"):
     """Obrađuje stranicu sa fiskalnim računima i vraća listu dict-ova."""
-    client = openai.OpenAI(api_key=api_key)
-
     pdf_text = extract_text_from_bytes(pdf_bytes)
     images, is_multipage = pdf_bytes_to_images_base64(pdf_bytes, dpi=300)
     mime = "image/png"
@@ -930,15 +960,7 @@ def process_fiscal_pdf(pdf_bytes, filename="", api_key=None):
     else:
         content.append({"type": "text", "text": FISCAL_EXTRACTION_PROMPT})
 
-    response = _chat_completion_with_retry(
-        client,
-        model="gpt-4o",
-        temperature=0,
-        max_tokens=4000,
-        messages=[{"role": "user", "content": content}],
-    )
-
-    raw = response.choices[0].message.content.strip()
+    raw = _ai_call(content, api_key, provider=provider, max_tokens=4000)
 
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1]

@@ -41,14 +41,15 @@ def get_logo_b64():
         return base64.b64encode(open(logo_path, "rb").read()).decode()
     return None
 
-def get_api_key():
+def get_api_key(provider="openai"):
+    secret_name = "ANTHROPIC_API_KEY" if provider == "claude" else "OPENAI_API_KEY"
     try:
-        key = st.secrets.get("OPENAI_API_KEY", "")
+        key = st.secrets.get(secret_name, "")
         if key:
             return key
     except Exception:
         pass
-    return os.environ.get("OPENAI_API_KEY", "")
+    return os.environ.get(secret_name, "")
 
 logo_b64 = get_logo_b64()
 
@@ -263,13 +264,15 @@ elif st.session_state.page == "kif":
         st.session_state.pdf_map = {}
 
     with top_left:
+        provider = st.selectbox("AI Provider", ["claude", "openai"], key="kif_provider")
         process_clicked = st.button("Obradi račune", type="primary", use_container_width=True)
 
     if process_clicked:
-        api_key = get_api_key()
+        api_key = get_api_key(provider)
         with top_left:
             if not api_key:
-                st.error("OpenAI API ključ nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
+                key_name = "ANTHROPIC_API_KEY" if provider == "claude" else "OPENAI_API_KEY"
+                st.error(f"{key_name} nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
                 st.stop()
 
         st.session_state.results = []
@@ -296,7 +299,7 @@ elif st.session_state.page == "kif":
                         label = f"{file.name} (str. {page_num})" if file_pages > 1 else file.name
                         progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
                         try:
-                            data = process_pdf(page_bytes, filename=label, api_key=api_key)
+                            data = process_pdf(page_bytes, filename=label, api_key=api_key, provider=provider)
                             broj = data.get("BRDOKFAKT", "")
                             if broj and broj in seen:
                                 st.session_state.logs.append(("warn", f"{label} — duplikat računa {broj}"))
@@ -456,13 +459,15 @@ elif st.session_state.page == "dnevni":
         st.session_state.d_pdf_map = {}
 
     with top_left:
+        provider = st.selectbox("AI Provider", ["claude", "openai"], key="dnevni_provider")
         process_clicked_d = st.button("Obradi fiskalne račune", type="primary", use_container_width=True)
 
     if process_clicked_d:
-        api_key = get_api_key()
+        api_key = get_api_key(provider)
         with top_left:
             if not api_key:
-                st.error("OpenAI API ključ nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
+                key_name = "ANTHROPIC_API_KEY" if provider == "claude" else "OPENAI_API_KEY"
+                st.error(f"{key_name} nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
                 st.stop()
 
         st.session_state.d_results = []
@@ -487,7 +492,7 @@ elif st.session_state.page == "dnevni":
                         label = f"{file.name} (str. {page_num})" if file_pages > 1 else file.name
                         progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
                         try:
-                            fiscal_items = process_fiscal_pdf(page_bytes, filename=label, api_key=api_key)
+                            fiscal_items = process_fiscal_pdf(page_bytes, filename=label, api_key=api_key, provider=provider)
                             for item in fiscal_items:
                                 idx = len(st.session_state.d_results)
                                 st.session_state.d_results.append(item)
@@ -639,13 +644,15 @@ elif st.session_state.page == "kuf":
         st.session_state.k_labels = {}
 
     with top_left:
+        provider = st.selectbox("AI Provider", ["claude", "openai"], key="kuf_provider")
         process_clicked_k = st.button("Obradi račune", type="primary", use_container_width=True, key="process_kuf")
 
     if process_clicked_k:
-        api_key = get_api_key()
+        api_key = get_api_key(provider)
         with top_left:
             if not api_key:
-                st.error("OpenAI API ključ nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
+                key_name = "ANTHROPIC_API_KEY" if provider == "claude" else "OPENAI_API_KEY"
+                st.error(f"{key_name} nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
                 st.stop()
 
         st.session_state.k_results = []
@@ -672,7 +679,7 @@ elif st.session_state.page == "kuf":
                         label = f"{file.name} (str. {page_num})" if file_pages > 1 else file.name
                         progress.progress(i / total, text=f"Obrađujem {i+1}/{total}: {label}")
                         try:
-                            data = process_kuf_pdf(page_bytes, filename=label, api_key=api_key)
+                            data = process_kuf_pdf(page_bytes, filename=label, api_key=api_key, provider=provider)
                             broj = data.get("BROJFAKT", "")
                             if broj and broj in seen:
                                 st.session_state.k_logs.append(("warn", f"{label} — duplikat računa {broj}"))
@@ -834,13 +841,15 @@ elif st.session_state.page == "herbavital":
         st.session_state.h_labels = {}
 
     with top_left:
+        provider = st.selectbox("AI Provider", ["claude", "openai"], key="herbavital_provider")
         process_clicked_h = st.button("Obradi račune", type="primary", use_container_width=True, key="process_herbavital")
 
     if process_clicked_h:
-        api_key = get_api_key()
+        api_key = get_api_key(provider)
         with top_left:
             if not api_key:
-                st.error("OpenAI API ključ nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
+                key_name = "ANTHROPIC_API_KEY" if provider == "claude" else "OPENAI_API_KEY"
+                st.error(f"{key_name} nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
                 st.stop()
 
         st.session_state.h_results = []
@@ -868,7 +877,7 @@ elif st.session_state.page == "herbavital":
                 def prescan_progress(i, total, label):
                     progress.progress(i / total / 2, text=f"Faza 1/2: {label} ({i+1}/{total})")
 
-                invoice_groups = group_pages_by_invoice(page_list, api_key=api_key, progress_cb=prescan_progress)
+                invoice_groups = group_pages_by_invoice(page_list, api_key=api_key, provider=provider, progress_cb=prescan_progress)
                 progress.progress(0.5, text=f"Faza 1/2 gotova! Pronađeno {len(invoice_groups)} računa u {total_pages} stranica")
 
                 # Faza 3: obradi svaku grupu (spojene stranice → jedan AI poziv)
@@ -892,7 +901,7 @@ elif st.session_state.page == "herbavital":
                         else:
                             invoice_bytes = pages[0][1]
 
-                        data = process_pdf(invoice_bytes, filename=label, api_key=api_key)
+                        data = process_pdf(invoice_bytes, filename=label, api_key=api_key, provider=provider)
                         broj = data.get("BRDOKFAKT", "")
                         if broj and broj in seen:
                             st.session_state.h_logs.append(("warn", f"{label} — duplikat računa {broj}"))

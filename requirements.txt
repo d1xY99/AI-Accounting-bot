@@ -1,5 +1,6 @@
 streamlit
 openai
+anthropic
 pymupdf
 pdf2image
 xlwt
