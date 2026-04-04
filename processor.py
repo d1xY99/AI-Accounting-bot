@@ -296,7 +296,7 @@ def _ai_call(content_parts, api_key, provider="openai", max_tokens=2000):
         for attempt in range(5):
             try:
                 response = client.messages.create(
-                    model="claude-sonnet-4-6",
+                    model="claude-opus-4-6",
                     max_tokens=max_tokens,
                     messages=[{"role": "user", "content": claude_content}],
                 )
@@ -884,6 +884,16 @@ def process_pdf(pdf_bytes, filename="", api_key=None, provider="openai"):
     data.pop("NAZIV_IZDAVACA", None)
     data.pop("KUPAC_SIFRA", None)
     data.pop("NAZIV_USLUGE", None)
+
+    # ── Matematička validacija: IZNPDV = IZNAKFT - IZNOSNOV ──
+    try:
+        iznakft = float(str(data.get("IZNAKFT", "0")).replace(",", "."))
+        iznosnov = float(str(data.get("IZNOSNOV", "0")).replace(",", "."))
+        expected_pdv = round(iznakft - iznosnov, 2)
+        if expected_pdv > 0:
+            data["IZNPDV"] = f"{expected_pdv:.2f}"
+    except (ValueError, TypeError):
+        pass
 
     return data
 
