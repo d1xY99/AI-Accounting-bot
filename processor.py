@@ -262,19 +262,26 @@ def _chat_completion_with_retry(client, max_retries=5, **kwargs):
             time.sleep(wait)
 
 
+_CLAUDE_MODELS = {
+    "claude-sonnet": "claude-sonnet-4-6",
+    "claude-opus": "claude-opus-4-6",
+}
+
+
 def _ai_call(content_parts, api_key, provider="openai", max_tokens=2000):
-    """Unified AI poziv — radi sa OpenAI i Claude Sonnet 4.6.
+    """Unified AI poziv — radi sa OpenAI, Claude Sonnet i Claude Opus.
 
     Args:
         content_parts: lista OpenAI-format content dijelova
         api_key: API ključ za odabrani provider
-        provider: "openai" ili "claude"
+        provider: "openai", "claude-sonnet" ili "claude-opus"
         max_tokens: max output tokena
     Returns:
         str: response text
     """
-    if provider == "claude":
+    if provider.startswith("claude"):
         client = anthropic.Anthropic(api_key=api_key)
+        model = _CLAUDE_MODELS.get(provider, _CLAUDE_MODELS["claude-sonnet"])
         # Konvertuj OpenAI content format u Anthropic format
         claude_content = []
         for part in content_parts:
@@ -296,7 +303,7 @@ def _ai_call(content_parts, api_key, provider="openai", max_tokens=2000):
         for attempt in range(5):
             try:
                 response = client.messages.create(
-                    model="claude-opus-4-6",
+                    model=model,
                     max_tokens=max_tokens,
                     messages=[{"role": "user", "content": claude_content}],
                 )

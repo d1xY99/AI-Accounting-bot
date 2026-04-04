@@ -42,7 +42,7 @@ def get_logo_b64():
     return None
 
 def get_api_key(provider="openai"):
-    secret_name = "ANTHROPIC_API_KEY" if provider == "claude" else "OPENAI_API_KEY"
+    secret_name = "ANTHROPIC_API_KEY" if provider.startswith("claude") else "OPENAI_API_KEY"
     try:
         key = st.secrets.get(secret_name, "")
         if key:
@@ -264,14 +264,14 @@ elif st.session_state.page == "kif":
         st.session_state.pdf_map = {}
 
     with top_left:
-        provider = st.selectbox("AI Provider", ["claude", "openai"], key="kif_provider")
+        provider = st.selectbox("AI Provider", ["claude-sonnet", "claude-opus", "openai"], key="kif_provider")
         process_clicked = st.button("Obradi račune", type="primary", use_container_width=True)
 
     if process_clicked:
         api_key = get_api_key(provider)
         with top_left:
             if not api_key:
-                key_name = "ANTHROPIC_API_KEY" if provider == "claude" else "OPENAI_API_KEY"
+                key_name = "ANTHROPIC_API_KEY" if provider.startswith("claude") else "OPENAI_API_KEY"
                 st.error(f"{key_name} nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
                 st.stop()
 
@@ -459,14 +459,14 @@ elif st.session_state.page == "dnevni":
         st.session_state.d_pdf_map = {}
 
     with top_left:
-        provider = st.selectbox("AI Provider", ["claude", "openai"], key="dnevni_provider")
+        provider = st.selectbox("AI Provider", ["claude-sonnet", "claude-opus", "openai"], key="dnevni_provider")
         process_clicked_d = st.button("Obradi fiskalne račune", type="primary", use_container_width=True)
 
     if process_clicked_d:
         api_key = get_api_key(provider)
         with top_left:
             if not api_key:
-                key_name = "ANTHROPIC_API_KEY" if provider == "claude" else "OPENAI_API_KEY"
+                key_name = "ANTHROPIC_API_KEY" if provider.startswith("claude") else "OPENAI_API_KEY"
                 st.error(f"{key_name} nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
                 st.stop()
 
@@ -644,14 +644,14 @@ elif st.session_state.page == "kuf":
         st.session_state.k_labels = {}
 
     with top_left:
-        provider = st.selectbox("AI Provider", ["claude", "openai"], key="kuf_provider")
+        provider = st.selectbox("AI Provider", ["claude-sonnet", "claude-opus", "openai"], key="kuf_provider")
         process_clicked_k = st.button("Obradi račune", type="primary", use_container_width=True, key="process_kuf")
 
     if process_clicked_k:
         api_key = get_api_key(provider)
         with top_left:
             if not api_key:
-                key_name = "ANTHROPIC_API_KEY" if provider == "claude" else "OPENAI_API_KEY"
+                key_name = "ANTHROPIC_API_KEY" if provider.startswith("claude") else "OPENAI_API_KEY"
                 st.error(f"{key_name} nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
                 st.stop()
 
@@ -841,14 +841,14 @@ elif st.session_state.page == "herbavital":
         st.session_state.h_labels = {}
 
     with top_left:
-        provider = st.selectbox("AI Provider", ["claude", "openai"], key="herbavital_provider")
+        provider = st.selectbox("AI Provider", ["claude-sonnet", "claude-opus", "openai"], key="herbavital_provider")
         process_clicked_h = st.button("Obradi račune", type="primary", use_container_width=True, key="process_herbavital")
 
     if process_clicked_h:
         api_key = get_api_key(provider)
         with top_left:
             if not api_key:
-                key_name = "ANTHROPIC_API_KEY" if provider == "claude" else "OPENAI_API_KEY"
+                key_name = "ANTHROPIC_API_KEY" if provider.startswith("claude") else "OPENAI_API_KEY"
                 st.error(f"{key_name} nije pronađen. Dodaj ga u .streamlit/secrets.toml ili .env")
                 st.stop()
 
